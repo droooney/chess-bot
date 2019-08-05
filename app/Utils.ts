@@ -71,12 +71,12 @@ export default class Utils {
   static pieceLiterals: { [color in Color]: string; } = ['KQRBNP', 'kqrbnp'];
   static piecesWorth: { [type in PieceType]: number; } = [0, 9, 5, 3, 3, 1];
   static pieceFromLiteral: { [literal in string]: PieceType; } = {
-    K: PieceType.KING,
-    Q: PieceType.QUEEN,
-    R: PieceType.ROOK,
-    B: PieceType.BISHOP,
-    N: PieceType.KNIGHT,
-    P: PieceType.PAWN
+    k: PieceType.KING,
+    q: PieceType.QUEEN,
+    r: PieceType.ROOK,
+    b: PieceType.BISHOP,
+    n: PieceType.KNIGHT,
+    p: PieceType.PAWN
   };
   static squares: number[][] = new Array(8).fill(0).map((_v, y) => (
     new Array(8).fill(0).map((_v, x) => y * 8 + x)
@@ -274,7 +274,7 @@ export default class Utils {
     let move = fromSquare << 9 | toSquare << 3;
 
     if (promotion) {
-      move |= Utils.pieceFromLiteral[promotion.toUpperCase()];
+      move |= Utils.pieceFromLiteral[promotion];
     }
 
     return move;

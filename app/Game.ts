@@ -214,10 +214,10 @@ export default class Game extends Utils {
         const pieceInSquare = this.board[square];
 
         if (
-          pieceInSquare
-          && (
-            pieceInSquare.color !== pieceColor
-            || type === GetPossibleMovesType.ATTACKED
+          type === GetPossibleMovesType.ATTACKED
+          || (
+            pieceInSquare
+            && pieceInSquare.color !== pieceColor
           )
         ) {
           possibleMoves.push(square);
@@ -271,16 +271,16 @@ export default class Game extends Utils {
     const maxPiecesColor = whiteHasMore
       ? Color.WHITE
       : Color.BLACK;
-    const maxPieceCounts = this.pieceCounts[maxPiecesColor];
+    const maxPieceCount = this.pieceCounts[maxPiecesColor];
 
     // king vs king
-    if (maxPieceCounts === 1) {
+    if (maxPieceCount === 1) {
       return true;
     }
 
     const maxPieces = this.pieces[maxPiecesColor];
 
-    if (this.pieceCounts[minPiecesColor] === 1 || maxPieceCounts === 2) {
+    if (this.pieceCounts[minPiecesColor] === 1 || maxPieceCount === 2) {
       for (const pieceId in maxPieces) {
         if (maxPieces[pieceId].type === PieceType.KNIGHT) {
           return true;
