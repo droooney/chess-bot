@@ -2,6 +2,7 @@ import Utils, {
   Board,
   CastlingSide,
   Color,
+  ColorPieces,
   EnPassant,
   MoveInGame,
   Piece,
@@ -10,7 +11,7 @@ import Utils, {
   Result
 } from './Utils';
 
-enum GetPossibleMovesType {
+export enum GetPossibleMovesType {
   MOVE,
   ATTACKED
 }
@@ -55,7 +56,7 @@ export default class Game extends Utils {
   isCheck: boolean = false;
   board: Board = Game.allSquares.map(() => null);
   kings: { [color in Color]: Piece; };
-  pieces: { [color in Color]: { [id in number]: Piece; }; } = Game.getStartingPieces();
+  pieces: { [color in Color]: ColorPieces; } = Game.getStartingPieces();
   pieceCounts: { [color in Color]: number; } = [0, 0];
   moves: MoveInGame[] = [];
   positionString: string;
@@ -168,11 +169,7 @@ export default class Game extends Utils {
             middleSquares
           } = Game.possibleCastling[pieceColor][castlings[i]];
 
-          if (this.board[newKingSquare]) {
-            continue;
-          }
-
-          for (let i = 0, l = middleSquares.length - 1; i < l; i++) {
+          for (let i = 0, l = middleSquares.length; i < l; i++) {
             if (this.board[middleSquares[i]]) {
               continue castling;
             }
@@ -347,7 +344,7 @@ export default class Game extends Utils {
 
   movePiece(piece: Piece, square: number) {
     this.positionString = this.positionString.slice(0, piece.square) + '*' + this.positionString.slice(piece.square + 1);
-    this.positionString = this.positionString.slice(0, square) + Game.pieceLiteral[piece.type] + this.positionString.slice(square + 1);
+    this.positionString = this.positionString.slice(0, square) + Game.pieceLiterals[piece.color][piece.type] + this.positionString.slice(square + 1);
 
     this.board[piece.square] = null;
     this.board[square] = piece;
@@ -419,9 +416,9 @@ export default class Game extends Utils {
     }
 
     if (capturedPiece || pieceType === PieceType.PAWN) {
-      this.pliesWithoutCaptureOrPawnMove++;
-    } else {
       this.pliesWithoutCaptureOrPawnMove = 0;
+    } else {
+      this.pliesWithoutCaptureOrPawnMove++;
     }
 
     if (promotion) {
@@ -489,7 +486,8 @@ export default class Game extends Utils {
         prevResult,
         prevPositionString,
         prevPossibleEnPassant,
-        prevPossibleCastling
+        prevPossibleCastling,
+        prevPliesWithoutCaptureOrPawnMove
       } = lastMove;
 
       for (let i = 0, l = changedPieces.length; i < l; i++) {
@@ -515,6 +513,7 @@ export default class Game extends Utils {
       this.positionString = prevPositionString;
       this.possibleEnPassant = prevPossibleEnPassant;
       this.possibleCastling = prevPossibleCastling;
+      this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
       this.turn = prevTurn;
       this.result = prevResult;
     }

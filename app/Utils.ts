@@ -32,6 +32,8 @@ export interface Piece {
   square: number;
 }
 
+export type ColorPieces = { [id in number]: Piece; };
+
 export enum CastlingSide {
   KING,
   QUEEN
@@ -66,6 +68,8 @@ export interface EnPassant {
 export default class Utils {
   static oppositeColor: { [color in Color]: Color; } = [Color.BLACK, Color.WHITE];
   static pieceLiteral: string = 'KQRBNP';
+  static pieceLiterals: { [color in Color]: string; } = ['KQRBNP', 'kqrbnp'];
+  static piecesWorth: { [type in PieceType]: number; } = [0, 9, 5, 3, 3, 1];
   static pieceFromLiteral: { [literal in string]: PieceType; } = {
     K: PieceType.KING,
     Q: PieceType.QUEEN,
@@ -260,6 +264,8 @@ export default class Utils {
     ]
   ];
   static kingInitialSquares: { [color in Color]: number; } = [Utils.squares[0][4], Utils.squares[7][4]];
+  static pieceRanks: { [color in Color]: number; } = [0, 7];
+  static pawnRanks: { [color in Color]: number; } = [1, 6];
 
   static getMoveFromUci(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;
