@@ -82,12 +82,12 @@ export default class LichessBot {
   }
 
   handleChallenge(challenge: LichessChallenge) {
-    console.log('challenge', challenge);
+    console.log(`got challenge from ${challenge.challenger.name}: ${
+      challenge.variant.name} ${challenge.speed} ${challenge.rated ? 'rated' : 'unrated'} game`);
 
     if (
       !challenge.rated
       && challenge.variant.key === 'standard'
-      && challenge.speed === 'classical'
     ) {
       this.sendRequest(`/api/challenge/${challenge.id}/accept`, 'post');
     } else {
@@ -132,6 +132,8 @@ export default class LichessBot {
   }
 
   async monitorCommandLine() {
+    console.log('Listening to command line commands...');
+
     for await (const data of process.stdin) {
       if (data instanceof Buffer) {
         const command = data.toString('utf8').trim();
@@ -154,6 +156,8 @@ export default class LichessBot {
   }
 
   async monitorLobbyEvents() {
+    console.log('Listening to lobby events...');
+
     const stream = this.createStream<LichessLobbyEvent>('/api/stream/event');
 
     for await (const event of stream) {

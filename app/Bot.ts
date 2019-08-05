@@ -12,7 +12,7 @@ export default class Bot extends Game {
 
   getAllLegalMoves(): number[] {
     const moves: number[] = [];
-    const pieces = this.pieces[this.color];
+    const pieces = this.pieces[this.turn];
 
     for (const pieceId in pieces) {
       const piece = pieces[pieceId];
@@ -22,7 +22,7 @@ export default class Bot extends Game {
         const square = legalMoves[i];
         const move = piece.square << 9 | square << 3;
 
-        if (square in Bot.promotionSquares[this.color]) {
+        if (piece.type === PieceType.PAWN && square in Bot.promotionSquares[this.turn]) {
           moves.push(move | PieceType.QUEEN);
           moves.push(move | PieceType.KNIGHT);
           moves.push(move | PieceType.ROOK);
@@ -47,8 +47,11 @@ export default class Bot extends Game {
       return;
     }
 
-    return;
+    const time = Date.now();
+    const move = this.getOptimalMove();
 
-    return this.getOptimalMove();
+    console.log(`move took ${Date.now() - time} ms`);
+
+    return move;
   }
 }

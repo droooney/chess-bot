@@ -12,28 +12,16 @@ export enum PieceType {
   PAWN
 }
 
-export interface Square {
-  readonly x: number;
-  readonly y: number;
-}
-
-export interface PossibleMove {
-  piece: Piece;
-  square: number;
-  castling?: Castling;
-  capturedPiece?: Piece;
-  enPassant?: EnPassant;
-}
-
 export interface MoveInGame {
   move: number;
   changedPieces: { piece: Piece; oldSquare: number; }[];
   capturedPiece: Piece | null;
   promotedPawn: Piece | null;
+  wasCheck: boolean;
   prevResult: Result | null;
   prevPositionString: string;
   prevPossibleEnPassant: EnPassant | null;
-  prevCastlingPossible: { [castlingSide in CastlingSide]: boolean; };
+  prevPossibleCastling: PossibleCastling;
   prevPliesWithoutCaptureOrPawnMove: number;
 }
 
@@ -58,7 +46,7 @@ export interface Castling {
 
 export type PossibleCastling = {
   [color in Color]: {
-    [castlingSide in CastlingSide]: Castling;
+    [castlingSide in CastlingSide]: boolean;
   };
 };
 
@@ -137,8 +125,8 @@ export default class Utils {
   ];
   static pawnAdvanceMoves: { [color in Color]: { [square in number]: number[]; }; } = [
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
       return y === 0 || y === 7
         ? []
@@ -147,8 +135,8 @@ export default class Utils {
           : [Utils.squares[y + 1][x]];
     }),
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
       return y === 0 || y === 7
         ? []
@@ -159,56 +147,56 @@ export default class Utils {
   ];
   static pawnDoubleAdvanceMoves: { [color in Color]: { [square in number]: number | null; }; } = [
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
       return y === 1
         ? Utils.squares[y + 2][x]
         : null;
     }),
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
-      return y === 1
+      return y === 6
         ? Utils.squares[y - 2][x]
         : null;
     })
   ];
   static pawnEnPassantSquares: { [color in Color]: { [square in number]: number; }; } = [
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
       return y === 1
         ? Utils.squares[y + 1][x]
         : -1;
     }),
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
-      return y === 1
+      return y === 6
         ? Utils.squares[y - 1][x]
         : -1;
     })
   ];
   static pawnCaptureMoves: { [color in Color]: { [square in number]: number[]; }; } = [
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
       return y === 0 || y === 7
         ? []
-        : [Utils.squares[y + 1][x + 1], Utils.squares[y + 1][x - 1]].filter(Boolean);
+        : [Utils.squares[y + 1][x + 1], Utils.squares[y + 1][x - 1]].filter((square) => square !== undefined);
     }),
     Utils.allSquares.map((square) => {
-      const x = square % 8;
-      const y = Math.floor(square / 8);
+      const x = square & 7;
+      const y = square >> 3;
 
       return y === 0 || y === 7
         ? []
-        : [Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter(Boolean);
+        : [Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter((square) => square !== undefined);
     })
   ];
   static promotionSquares: { [type in Color]: { [square in number]: true; }; } = [
@@ -227,8 +215,17 @@ export default class Utils {
     [Utils.squares[0][6]]: CastlingSide.KING,
     [Utils.squares[7][6]]: CastlingSide.KING
   };
-  static possibleCastling: PossibleCastling = [
+  static possibleCastling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [
     [
+      {
+        rookSquare: Utils.squares[0][7],
+        newKingSquare: Utils.squares[0][6],
+        newRookSquare: Utils.squares[0][5],
+        middleSquares: [
+          Utils.squares[0][5],
+          Utils.squares[0][6]
+        ]
+      },
       {
         rookSquare: Utils.squares[0][0],
         newKingSquare: Utils.squares[0][2],
@@ -238,18 +235,18 @@ export default class Utils {
           Utils.squares[0][2],
           Utils.squares[0][3]
         ]
-      },
-      {
-        rookSquare: Utils.squares[0][7],
-        newKingSquare: Utils.squares[0][6],
-        newRookSquare: Utils.squares[0][5],
-        middleSquares: [
-          Utils.squares[0][5],
-          Utils.squares[0][6]
-        ]
       }
     ],
     [
+      {
+        rookSquare: Utils.squares[7][7],
+        newKingSquare: Utils.squares[7][6],
+        newRookSquare: Utils.squares[7][5],
+        middleSquares: [
+          Utils.squares[7][5],
+          Utils.squares[7][6]
+        ]
+      },
       {
         rookSquare: Utils.squares[7][0],
         newKingSquare: Utils.squares[7][2],
@@ -259,19 +256,10 @@ export default class Utils {
           Utils.squares[7][2],
           Utils.squares[7][3]
         ]
-      },
-      {
-        rookSquare: Utils.squares[7][7],
-        newKingSquare: Utils.squares[7][6],
-        newRookSquare: Utils.squares[7][5],
-        middleSquares: [
-          Utils.squares[7][5],
-          Utils.squares[7][6]
-        ]
       }
     ]
   ];
-  static kingInitialSquares: { [color in Color]: number; } = [Utils.squares[0][3], Utils.squares[7][3]];
+  static kingInitialSquares: { [color in Color]: number; } = [Utils.squares[0][4], Utils.squares[7][4]];
 
   static getMoveFromUci(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;
@@ -291,12 +279,12 @@ export default class Utils {
   }
 
   static getSquareLiteral(square: number): string {
-    return `${String.fromCharCode((square % 8) + 97)}${Math.floor(square / 8) + 1}`;
+    return `${String.fromCharCode((square & 7) + 97)}${(square >> 3) + 1}`;
   }
 
   static getUciFromMove(move: number): string {
     const from = Utils.getSquareLiteral(move >> 9);
-    const to = Utils.getSquareLiteral(move >> 3);
+    const to = Utils.getSquareLiteral(move >> 3 & 63);
     const promotion = move & 7
       ? Utils.pieceLiteral[move & 7]
       : '';
@@ -305,8 +293,8 @@ export default class Utils {
   }
 
   static traverseDirection(square: number, incrementX: number, incrementY: number, stopAfter1: boolean): number[] {
-    const nextX = (square % 8) + incrementX;
-    const nextY = Math.floor(square / 8) + incrementY;
+    const nextX = (square & 7) + incrementX;
+    const nextY = (square >> 3) + incrementY;
 
     if (nextY < 0 || nextY > 7) {
       return [];
@@ -314,7 +302,7 @@ export default class Utils {
 
     const nextSquare = Utils.squares[nextY][nextX];
 
-    if (!nextSquare) {
+    if (nextSquare === undefined) {
       return [];
     }
 
