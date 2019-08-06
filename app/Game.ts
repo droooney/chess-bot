@@ -137,7 +137,7 @@ export default class Game extends Utils {
           const pieceInSquare = this.board[square];
 
           if (pieceInSquare) {
-            if (pieceInSquare.color !== pieceColor) {
+            if (pieceInSquare.color !== pieceColor || type === GetPossibleMovesType.ATTACKED) {
               possibleMoves.push(square);
             }
 
@@ -280,9 +280,9 @@ export default class Game extends Utils {
 
     const maxPieces = this.pieces[maxPiecesColor];
 
-    if (this.pieceCounts[minPiecesColor] === 1 || maxPieceCount === 2) {
+    if (this.pieceCounts[minPiecesColor] === 1 && maxPieceCount === 2) {
       for (const pieceId in maxPieces) {
-        if (maxPieces[pieceId].type === PieceType.KNIGHT) {
+        if (maxPieces[pieceId].type === PieceType.KNIGHT || maxPieces[pieceId].type === PieceType.BISHOP) {
           return true;
         }
       }
@@ -312,7 +312,7 @@ export default class Game extends Utils {
     }
 
     for (const pieceId in minPieces) {
-      const piece = maxPieces[pieceId];
+      const piece = minPieces[pieceId];
 
       if (piece.type === PieceType.KING) {
         continue;
@@ -510,6 +510,11 @@ export default class Game extends Utils {
 
       this.isCheck = wasCheck;
       this.positions[this.positionString]--;
+
+      if (!this.positions[this.positionString]) {
+        delete this.positions[this.positionString];
+      }
+
       this.positionString = prevPositionString;
       this.possibleEnPassant = prevPossibleEnPassant;
       this.possibleCastling = prevPossibleCastling;

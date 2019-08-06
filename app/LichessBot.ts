@@ -25,8 +25,8 @@ export default class LichessBot {
   }
 
   createStream<T>(url: string): AsyncIterable<T> {
-    const results: T[] = [];
-    let flush: ((data: T) => void) | null = null;
+    const results: IteratorResult<T>[] = [];
+    let flush: ((data: IteratorResult<T>) => void) | null = null;
 
     return {
       [Symbol.asyncIterator]: () => {
@@ -36,7 +36,10 @@ export default class LichessBot {
               data.toString('utf8').split('\n').forEach((data) => {
                 if (data) {
                   try {
-                    results.push(JSON.parse(data));
+                    results.push({
+                      done: false,
+                      value: JSON.parse(data)
+                    });
                   } catch (err) {
                     /* empty */
                   }
@@ -52,6 +55,14 @@ export default class LichessBot {
               }
             }
           }
+
+          const result = { done: true } as IteratorResult<T>;
+
+          if (flush) {
+            flush(result);
+          } else {
+            results.push(result);
+          }
         });
 
         return {
@@ -60,16 +71,10 @@ export default class LichessBot {
               const result = results.shift();
 
               if (result) {
-                resolve({
-                  done: false,
-                  value: result
-                });
+                resolve(result);
               } else {
                 flush = (data) => {
-                  resolve({
-                    done: false,
-                    value: data
-                  });
+                  resolve(data);
 
                   flush = null;
                 };
@@ -96,6 +101,8 @@ export default class LichessBot {
   }
 
   async handleGameStart(gameId: string) {
+    console.log(`game ${gameId} started. prev number of games: ${Object.keys(this.bots).length}`);
+
     const stream = this.createStream<LichessGameEvent>(`/api/bot/game/stream/${gameId}`);
 
     for await (const event of stream) {
@@ -111,6 +118,10 @@ export default class LichessBot {
         }
       }
     }
+
+    delete this.bots[gameId];
+
+    console.log(`game ${gameId} ended. number of games: ${Object.keys(this.bots).length}`);
   }
 
   handleGameState(gameId: string, bot: Bot, gameState: LichessGameState) {
@@ -118,10 +129,6 @@ export default class LichessBot {
       gameState.moves.split(' ').slice(bot.moves.length).forEach((uci) => {
         bot.performMove(Utils.getMoveFromUci(uci), true);
       });
-    }
-
-    if (bot.result) {
-      delete this.bots[gameId];
     }
 
     const move = bot.makeMove();

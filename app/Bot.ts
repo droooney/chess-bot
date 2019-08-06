@@ -480,7 +480,7 @@ export default class Bot extends Game {
         && !(piece.square in defendedSquares)
         && !(piece.square in attackedSquares)
       ) {
-        score -= -Bot.piecesWorth[piece.type];
+        score -= Bot.piecesWorth[piece.type];
       }
     }
 
@@ -655,7 +655,7 @@ export default class Bot extends Game {
   }
 
   makeMove(): number | undefined {
-    if (this.result || this.turn !== this.color) {
+    if (this.turn !== this.color) {
       return;
     }
 
