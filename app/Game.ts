@@ -7,7 +7,6 @@ import Utils, {
   MoveInGame,
   Piece,
   PieceType,
-  PossibleCastling,
   Result
 } from './Utils';
 
@@ -61,7 +60,7 @@ export default class Game extends Utils {
   moves: MoveInGame[] = [];
   positionString: string;
   positions: { [position in string]: number; } = {};
-  possibleCastling: PossibleCastling = [[true, true], [true, true]];
+  possibleCastling: number = 15;
   possibleEnPassant: EnPassant | null = null;
   pliesWithoutCaptureOrPawnMove: number = 0;
 
@@ -105,17 +104,7 @@ export default class Game extends Utils {
   }
 
   getPositionStringWithoutBoard(): string {
-    return `${
-      this.turn
-    }${
-      +this.possibleCastling[Color.WHITE][CastlingSide.KING]
-    }${
-      +this.possibleCastling[Color.WHITE][CastlingSide.QUEEN]
-    }${
-      +this.possibleCastling[Color.BLACK][CastlingSide.KING]
-    }${
-      +this.possibleCastling[Color.BLACK][CastlingSide.QUEEN]
-    }${this.possibleEnPassant ? `${this.possibleEnPassant.square}` : ''}`;
+    return `${this.turn}${this.possibleCastling} ${this.possibleEnPassant ? `${this.possibleEnPassant.square}` : ''}`;
   }
 
   getPossibleMoves(piece: Piece, type: GetPossibleMovesType): number[] {
@@ -150,14 +139,13 @@ export default class Game extends Utils {
     }
 
     if (pieceType === PieceType.KING && type === GetPossibleMovesType.MOVE && !this.isCheck) {
-      const possibleCastling = this.possibleCastling[pieceColor];
       const castlings: CastlingSide[] = [];
 
-      if (possibleCastling[CastlingSide.KING]) {
+      if (this.possibleCastling & Game.castling[pieceColor][CastlingSide.KING]) {
         castlings.push(CastlingSide.KING);
       }
 
-      if (possibleCastling[CastlingSide.QUEEN]) {
+      if (this.possibleCastling & Game.castling[pieceColor][CastlingSide.QUEEN]) {
         castlings.push(CastlingSide.QUEEN);
       }
 
@@ -167,7 +155,7 @@ export default class Game extends Utils {
             newRookSquare,
             newKingSquare,
             middleSquares
-          } = Game.possibleCastling[pieceColor][castlings[i]];
+          } = Game.castlingParams[pieceColor][castlings[i]];
 
           for (let i = 0, l = middleSquares.length; i < l; i++) {
             if (this.board[middleSquares[i]]) {
@@ -368,13 +356,6 @@ export default class Game extends Utils {
     const prevPositionString = this.positionString;
     const prevPossibleEnPassant = this.possibleEnPassant;
     const prevPossibleCastling = this.possibleCastling;
-    const newPossibleCastling: PossibleCastling = [[
-      this.possibleCastling[Color.WHITE][CastlingSide.KING],
-      this.possibleCastling[Color.WHITE][CastlingSide.QUEEN]
-    ], [
-      this.possibleCastling[Color.BLACK][CastlingSide.KING],
-      this.possibleCastling[Color.BLACK][CastlingSide.QUEEN]
-    ]];
     const prevPliesWithoutCaptureOrPawnMove = this.pliesWithoutCaptureOrPawnMove;
     const isEnPassantCapture = pieceType === PieceType.PAWN && !!this.possibleEnPassant && to === this.possibleEnPassant.square;
     const capturedPiece = isEnPassantCapture
@@ -384,12 +365,14 @@ export default class Game extends Utils {
     this.movePiece(piece, to);
 
     if (pieceType === PieceType.KING) {
-      newPossibleCastling[pieceColor][CastlingSide.KING] = false;
-      newPossibleCastling[pieceColor][CastlingSide.QUEEN] = false;
+      this.possibleCastling &= (
+        Game.noCastling[pieceColor][CastlingSide.KING]
+        & Game.noCastling[pieceColor][CastlingSide.QUEEN]
+      );
     }
 
     if (pieceType === PieceType.ROOK && from in Game.rookCastlingSides) {
-      newPossibleCastling[pieceColor][Game.rookCastlingSides[from]] = false;
+      this.possibleCastling &= Game.noCastling[pieceColor][Game.rookCastlingSides[from]];
     }
 
     if (
@@ -400,7 +383,7 @@ export default class Game extends Utils {
       const {
         rookSquare,
         newRookSquare
-      } = Game.possibleCastling[pieceColor][Game.kingCastlingSides[to]];
+      } = Game.castlingParams[pieceColor][Game.kingCastlingSides[to]];
       const rook = this.board[rookSquare]!;
 
       this.movePiece(rook, newRookSquare);
@@ -411,7 +394,7 @@ export default class Game extends Utils {
       this.removePiece(capturedPiece, isEnPassantCapture);
 
       if (capturedPiece.type === PieceType.ROOK && capturedPiece.square in Game.rookCastlingSides) {
-        newPossibleCastling[nextTurn][Game.rookCastlingSides[capturedPiece.square]] = false;
+        this.possibleCastling &= Game.noCastling[nextTurn][Game.rookCastlingSides[capturedPiece.square]];
       }
     }
 
@@ -436,7 +419,6 @@ export default class Game extends Utils {
 
     this.turn = nextTurn;
     this.isCheck = this.isInCheck(this.turn);
-    this.possibleCastling = newPossibleCastling;
     this.positionString = this.positionString.slice(0, 64) + this.getPositionStringWithoutBoard();
     this.positions[this.positionString] = this.positions[this.positionString] + 1 || 1;
 

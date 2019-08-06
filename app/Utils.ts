@@ -21,7 +21,7 @@ export interface MoveInGame {
   prevResult: Result | null;
   prevPositionString: string;
   prevPossibleEnPassant: EnPassant | null;
-  prevPossibleCastling: PossibleCastling;
+  prevPossibleCastling: number;
   prevPliesWithoutCaptureOrPawnMove: number;
 }
 
@@ -39,18 +39,19 @@ export enum CastlingSide {
   QUEEN
 }
 
-export interface Castling {
+export interface CastlingParams {
   rookSquare: number;
   newKingSquare: number;
   newRookSquare: number;
   middleSquares: number[];
 }
 
-export type PossibleCastling = {
-  [color in Color]: {
-    [castlingSide in CastlingSide]: boolean;
-  };
-};
+export enum Castling {
+  WHITE_KING_SIDE = 1,
+  WHITE_QUEEN_SIDE = 2,
+  BLACK_KING_SIDE = 4,
+  BLACK_QUEEN_SIDE = 8
+}
 
 export enum Result {
   WHITE,
@@ -207,6 +208,20 @@ export default class Utils {
     Utils.allSquares.slice(56).reduce((squares, square) => ({ ...squares, [square]: true }), {}),
     Utils.allSquares.slice(0, 8).reduce((squares, square) => ({ ...squares, [square]: true }), {})
   ];
+  static castling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [[
+    Castling.WHITE_KING_SIDE,
+    Castling.WHITE_QUEEN_SIDE
+  ], [
+    Castling.BLACK_KING_SIDE,
+    Castling.BLACK_QUEEN_SIDE
+  ]];
+  static noCastling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [[
+    15 ^ Castling.WHITE_KING_SIDE,
+    15 ^ Castling.WHITE_QUEEN_SIDE
+  ], [
+    15 ^ Castling.BLACK_KING_SIDE,
+    15 ^ Castling.BLACK_QUEEN_SIDE
+  ]];
   static rookCastlingSides: { [rookSquare in number]: CastlingSide; } = {
     [Utils.squares[0][0]]: CastlingSide.QUEEN,
     [Utils.squares[7][0]]: CastlingSide.QUEEN,
@@ -219,7 +234,7 @@ export default class Utils {
     [Utils.squares[0][6]]: CastlingSide.KING,
     [Utils.squares[7][6]]: CastlingSide.KING
   };
-  static possibleCastling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [
+  static castlingParams: { [color in Color]: { [castlingSide in CastlingSide]: CastlingParams; }; } = [
     [
       {
         rookSquare: Utils.squares[0][7],
