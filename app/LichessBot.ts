@@ -9,7 +9,7 @@ import {
   LichessGameState,
   LichessLobbyEvent
 } from './types';
-import Utils, { Color } from './Utils';
+import Utils, { Color, Result } from './Utils';
 
 export default class LichessBot {
   token: string;
@@ -129,6 +129,10 @@ export default class LichessBot {
       gameState.moves.split(' ').slice(bot.moves.length).forEach((uci) => {
         bot.performMove(Utils.getMoveFromUci(uci), true);
       });
+    }
+
+    if (bot.result && bot.result < Result.DRAW) {
+      return;
     }
 
     const move = bot.makeMove();

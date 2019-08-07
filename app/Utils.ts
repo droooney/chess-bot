@@ -70,7 +70,7 @@ export default class Utils {
   static oppositeColor: { [color in Color]: Color; } = [Color.BLACK, Color.WHITE];
   static pieceLiteral: string = 'KQRBNP';
   static pieceLiterals: { [color in Color]: string; } = ['KQRBNP', 'kqrbnp'];
-  static piecesWorth: { [type in PieceType]: number; } = [0, 9, 5, 3, 3, 1];
+  static piecesWorth: { [type in PieceType]: number; } = [100, 9, 5, 3, 3, 1];
   static pieceFromLiteral: { [literal in string]: PieceType; } = {
     k: PieceType.KING,
     q: PieceType.QUEEN,

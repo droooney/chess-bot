@@ -15,6 +15,14 @@ export default class Bot extends Game {
   }
 
   eval(): number {
+    if (this.result !== null) {
+      return this.result === Result.DRAW
+        ? 0
+        : this.result === this.color as 0 | 1
+          ? Infinity
+          : -Infinity
+    }
+
     return this.evalColor(this.color) - this.evalColor(this.opponentColor);
   }
 
@@ -35,52 +43,19 @@ export default class Bot extends Game {
       pawnFiles[file] = pawnFiles[file] + 1 || 1;
     }
 
-    const evalMaterial = this.evalMaterial(pieces);
-    const evalAdvancedPawns = this.evalAdvancedPawns(color, pawns);
-    const evalBishopPair = this.evalBishopPair(pieces);
-    const evalControl = this.evalControl(color, opponentKing, pieces, isEndgame);
-    const evalDevelopment = this.evalDevelopment(color, pieces);
-    const evalDoubledPawns = this.evalDoubledPawns(pawnFiles);
-    const evalHangingPieces = this.evalHangingPieces(color, pieces, opponentPieces, evalMaterial);
-    const evalKingSafety = this.evalKingSafety(color, king, isEndgame);
-    const evalPassedPawns = this.evalPassedPawns(color, opponentColor, pawns);
-    const evalPawnIslands = this.evalPawnIslands(pawnFiles);
-    const evalRooksActivity = this.evalRooksActivity(pieces, pawnFiles);
-    const evalUndefendedPieces = this.evalUndefendedPieces(pieces, opponentPieces);
-
-    /*
-    console.log({
-      color,
-      evalMaterial,
-      evalAdvancedPawns,
-      evalBishopPair,
-      evalChecksCount,
-      evalControl,
-      evalDevelopment,
-      evalDoubledPawns,
-      evalHangingPieces,
-      evalKingNearCenter,
-      evalKingSafety,
-      evalPassedPawns,
-      evalPawnIslands,
-      evalRooksActivity,
-      evalUndefendedPieces
-    });
-    */
-
     return (
-      evalMaterial
-      + evalAdvancedPawns
-      + evalBishopPair
-      + evalControl
-      + evalDevelopment
-      + evalDoubledPawns
-      + evalHangingPieces
-      + evalKingSafety
-      + evalPassedPawns
-      + evalPawnIslands
-      + evalRooksActivity
-      + evalUndefendedPieces
+      this.evalAdvancedPawns(color, pawns)
+      + this.evalBishopPair(pieces)
+      + this.evalControl(color, opponentKing, pieces, isEndgame)
+      + this.evalDevelopment(color, pieces)
+      + this.evalDoubledPawns(pawnFiles)
+      + this.evalHangingPieces(color, pieces, opponentPieces)
+      + this.evalKingSafety(color, king, isEndgame)
+      + this.evalMaterial(pieces)
+      + this.evalPassedPawns(color, opponentColor, pawns)
+      + this.evalPawnIslands(pawnFiles)
+      + this.evalRooksActivity(pieces, pawnFiles)
+      // + this.evalUndefendedPieces(pieces, opponentPieces)
     );
   }
 
@@ -206,9 +181,7 @@ export default class Bot extends Game {
     return score;
   }
 
-  evalHangingPieces(color: Color, pieces: ColorPieces, opponentPieces: ColorPieces, evalMaterial: number): number {
-    let evalMaterialDiff = evalMaterial - this.evalMaterial(opponentPieces);
-    const initialMaterialDiff = evalMaterialDiff;
+  evalHangingPieces(color: Color, pieces: ColorPieces, opponentPieces: ColorPieces): number {
     const coeff = this.turn === color ? 10 : 100;
     let score = 0;
     const defendedSquares: { [square in number]: Piece[]; } = {};
@@ -261,33 +234,106 @@ export default class Bot extends Game {
       attackingPieces.sort(this.pieceSorter);
 
       let pieceToTake: PieceType = piece.type;
+      let diff = 0;
+      let state: 0 | 1 = 0;
+      const lossStates: number[] = [0];
 
-      while (defendingPieces.length && attackingPieces.length) {
-        const defender = defendingPieces.pop()!;
-        const attacker = attackingPieces.pop()!;
+      while (true) {
+        if (state === 0) {
+          let lessValuableAttacker = attackingPieces.pop();
 
-        evalMaterialDiff += Bot.piecesWorth[attacker.type] - Bot.piecesWorth[pieceToTake];
+          /*
+          for (const pieceId in opponentPieces) {
+            const attackingPiece = opponentPieces[pieceId];
+            const legalMoves = this.getLegalMoves(attackingPiece, false);
 
-        pieceToTake = defender.type;
+            for (let i = 0, l = legalMoves.length; i < l; i++) {
+              const square = legalMoves[i];
 
-        if (evalMaterialDiff < initialMaterialDiff) {
-          score -= Bot.piecesWorth[piece.type] * coeff;
+              if (square === piece.square) {
+                if (!lessValuableAttacker || lessValuableAttacker.type > attackingPiece.type) {
+                  lessValuableAttacker = attackingPiece;
+                }
 
-          continue pieces;
+                break;
+              }
+            }
+          }
+          */
+
+          if (!lessValuableAttacker) {
+            break;
+          }
+
+          this.performMove(lessValuableAttacker.square << 9 | piece.square << 3, false);
+
+          lossStates.push(diff += pieceToTake);
+
+          pieceToTake = lessValuableAttacker.type;
+          state = 1;
+        } else {
+          let lessValuableDefender = defendingPieces.pop();
+
+          /*
+          for (const pieceId in pieces) {
+            const defendingPiece = pieces[pieceId];
+            const legalMoves = this.getLegalMoves(defendingPiece, false);
+
+            for (let i = 0, l = legalMoves.length; i < l; i++) {
+              const square = legalMoves[i];
+
+              if (square === piece.square) {
+                if (!lessValuableDefender || lessValuableDefender.type > defendingPiece.type) {
+                  lessValuableDefender = defendingPiece;
+                }
+
+                break;
+              }
+            }
+          }
+          */
+
+          if (!lessValuableDefender) {
+            break;
+          }
+
+          this.performMove(lessValuableDefender.square << 9 | piece.square << 3, false);
+
+          lossStates.push(diff -= pieceToTake);
+
+          pieceToTake = lessValuableDefender.type;
+          state = 0;
+        }
+      }
+
+      lossStates.push(lossStates[lossStates.length - 1]);
+
+      let maxWin = -Infinity;
+      let maxWinIndex = 0;
+      let minLoss = Infinity;
+      let minLossIndex = 0;
+
+      for (let i = 0, l = lossStates.length; i < l; i++) {
+        let loss = lossStates[i];
+
+        if (i & 1) {
+          if (maxWin < loss) {
+            maxWin = loss;
+            maxWinIndex = i;
+          }
+        } else {
+          if (minLoss > loss) {
+            minLoss = loss;
+            minLossIndex = i;
+          }
         }
 
-        if (evalMaterialDiff - Bot.piecesWorth[pieceToTake] >= initialMaterialDiff) {
-          continue pieces;
+        if (i < l - 2) {
+          this.revertLastMove();
         }
       }
 
-      if (attackingPieces.length) {
-        evalMaterialDiff -= Bot.piecesWorth[pieceToTake];
-      }
-
-      if (evalMaterialDiff < initialMaterialDiff) {
-        score -= Bot.piecesWorth[piece.type] * coeff;
-      }
+      score -= lossStates[Math.min(minLossIndex, maxWinIndex)] * coeff;
     }
 
     return score;
@@ -668,6 +714,6 @@ export default class Bot extends Game {
   }
 
   pieceSorter = ({ type: type1 }: Piece, { type: type2 }: Piece): number => {
-    return Bot.piecesWorth[type1] - Bot.piecesWorth[type2];
+    return Bot.piecesWorth[type2] - Bot.piecesWorth[type1];
   };
 }
