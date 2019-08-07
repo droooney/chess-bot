@@ -14,9 +14,11 @@ export enum PieceType {
 
 export interface MoveInGame {
   move: number;
-  changedPieces: { piece: Piece; oldSquare: number; }[];
+  changedPiece: Piece;
+  changedPieceOldSquare: number;
   capturedPiece: Piece | null;
   promotedPawn: Piece | null;
+  castlingRook: Piece | null;
   wasCheck: boolean;
   prevResult: Result | null;
   prevPosition: bigint;
@@ -282,6 +284,12 @@ export default class Utils {
     ]
   ];
   static kingInitialSquares: { [color in Color]: number; } = [Utils.squares[0][4], Utils.squares[7][4]];
+  static rookInitialSquares: { [square in number]: number; } = {
+    [Utils.squares[0][3]]: Utils.squares[0][0],
+    [Utils.squares[7][3]]: Utils.squares[7][0],
+    [Utils.squares[0][5]]: Utils.squares[0][7],
+    [Utils.squares[7][5]]: Utils.squares[7][7]
+  };
   static pieceRanks: { [color in Color]: number; } = [0, 7];
   static pawnRanks: { [color in Color]: number; } = [1, 6];
 

@@ -106,7 +106,7 @@ export default class Bot extends Game {
         continue;
       }
 
-      const legalMoves = this.getLegalMoves(piece, false);
+      const legalMoves = this.getLegalMoves(piece);
 
       for (let i = 0, l = legalMoves.length; i < l; i++) {
         const square = legalMoves[i];
@@ -340,7 +340,7 @@ export default class Bot extends Game {
 
   evalKingSafety(color: Color, king: Piece, isEndgame: boolean): number {
     if (isEndgame) {
-      return this.getLegalMoves(king, false).length * 10;
+      return this.getLegalMoves(king).length * 10;
     }
 
     const kingFile = king.square & 7;
@@ -546,24 +546,36 @@ export default class Bot extends Game {
       return this.eval();
     }
 
-    const legalMoves = this.getAllLegalMoves();
+    const pieces = this.pieces[this.turn];
 
     let maxScore = isSame ? -Infinity : Infinity;
 
-    for (let i = 0, l = legalMoves.length; i < l; i++) {
-      this.performMove(legalMoves[i], true);
+    for (const pieceId in pieces) {
+      const piece = pieces[pieceId];
+      const legalMoves = this.getLegalMoves(piece);
 
-      const score = this.executeMiniMax(isSame ? depth : depth - 1, !isSame, maxScore);
+      for (let i = 0, l = legalMoves.length; i < l; i++) {
+        const square = legalMoves[i];
+        let move = piece.square << 9 | square << 3;
 
-      if (isSame ? score >= currentOptimalScore : score <= currentOptimalScore) {
+        if (piece.type === PieceType.PAWN && square in Bot.promotionSquares[this.turn]) {
+          move |= PieceType.QUEEN;
+        }
+
+        this.performMove(move, true);
+
+        const score = this.executeMiniMax(isSame ? depth : depth - 1, !isSame, maxScore);
+
+        if (isSame ? score >= currentOptimalScore : score <= currentOptimalScore) {
+          this.revertLastMove();
+
+          return isSame ? Infinity : -Infinity;
+        }
+
+        maxScore = isSame ? Math.max(maxScore, score) : Math.min(maxScore, score);
+
         this.revertLastMove();
-
-        return isSame ? Infinity : -Infinity;
       }
-
-      maxScore = isSame ? Math.max(maxScore, score) : Math.min(maxScore, score);
-
-      this.revertLastMove();
     }
 
     return maxScore;
@@ -575,7 +587,7 @@ export default class Bot extends Game {
 
     for (const pieceId in pieces) {
       const piece = pieces[pieceId];
-      const legalMoves = this.getLegalMoves(piece, false);
+      const legalMoves = this.getLegalMoves(piece);
 
       for (let i = 0, l = legalMoves.length; i < l; i++) {
         const square = legalMoves[i];

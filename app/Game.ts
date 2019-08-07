@@ -89,7 +89,7 @@ export default class Game extends Utils {
     this.setStartingData();
   }
 
-  getLegalMoves(piece: Piece, constructResult: boolean): number[] {
+  getLegalMoves(piece: Piece): number[] {
     const turn = this.turn;
     const legalMoves: number[] = [];
     const possibleMoves = this.getPossibleMoves(piece, GetPossibleMovesType.MOVE);
@@ -97,7 +97,7 @@ export default class Game extends Utils {
     for (let i = 0, l = possibleMoves.length; i < l; i++) {
       const square = possibleMoves[i];
 
-      this.performMove(piece.square << 9 | square << 3, constructResult);
+      this.performMove(piece.square << 9 | square << 3, false);
 
       if (!this.isInCheck(turn)) {
         legalMoves.push(square);
@@ -354,7 +354,7 @@ export default class Game extends Utils {
     const pieces = this.pieces[this.turn];
 
     for (const pieceId in pieces) {
-      if (this.getLegalMoves(pieces[pieceId], false).length) {
+      if (this.getLegalMoves(pieces[pieceId]).length) {
         return false;
       }
     }
@@ -386,7 +386,6 @@ export default class Game extends Utils {
       color: pieceColor
     } = piece;
     const nextTurn = Game.oppositeColor[this.turn];
-    const changedPieces: { piece: Piece; oldSquare: number; }[] = [{ piece, oldSquare: from }];
     const wasCheck = this.isCheck;
     const prevResult = this.result;
     const prevPosition = this.position;
@@ -397,6 +396,7 @@ export default class Game extends Utils {
     const capturedPiece = isEnPassantCapture
       ? this.board[this.possibleEnPassant!.pieceSquare]
       : this.board[to];
+    let castlingRook: Piece | null = null;
 
     this.movePiece(piece, to);
 
@@ -423,7 +423,8 @@ export default class Game extends Utils {
       const rook = this.board[rookSquare]!;
 
       this.movePiece(rook, newRookSquare);
-      changedPieces.push({ piece: rook, oldSquare: rookSquare });
+
+      castlingRook = rook;
     }
 
     if (capturedPiece) {
@@ -478,9 +479,11 @@ export default class Game extends Utils {
 
     this.moves.push({
       move,
-      changedPieces,
+      changedPiece: piece,
+      changedPieceOldSquare: from,
       capturedPiece,
       promotedPawn: promotion ? piece : null,
+      castlingRook,
       wasCheck,
       prevResult,
       prevPosition,
@@ -507,9 +510,11 @@ export default class Game extends Utils {
     if (lastMove) {
       const prevTurn = Game.oppositeColor[this.turn];
       const {
-        changedPieces,
+        changedPiece,
+        changedPieceOldSquare,
         capturedPiece,
         promotedPawn,
+        castlingRook,
         wasCheck,
         prevResult,
         prevPosition,
@@ -518,13 +523,9 @@ export default class Game extends Utils {
         prevPliesWithoutCaptureOrPawnMove
       } = lastMove;
 
-      for (let i = 0, l = changedPieces.length; i < l; i++) {
-        const changedPiece = changedPieces[i];
-
-        this.board[changedPiece.piece.square] = null;
-        this.board[changedPiece.oldSquare] = changedPiece.piece;
-        changedPiece.piece.square = changedPiece.oldSquare;
-      }
+      this.board[changedPiece.square] = null;
+      this.board[changedPieceOldSquare] = changedPiece;
+      changedPiece.square = changedPieceOldSquare;
 
       if (capturedPiece) {
         this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
@@ -534,6 +535,14 @@ export default class Game extends Utils {
 
       if (promotedPawn) {
         promotedPawn.type = PieceType.PAWN;
+      }
+
+      if (castlingRook) {
+        const oldSquare = Game.rookInitialSquares[castlingRook.square];
+
+        this.board[castlingRook.square] = null;
+        this.board[oldSquare] = castlingRook;
+        castlingRook.square = oldSquare;
       }
 
       this.isCheck = wasCheck;
