@@ -595,7 +595,7 @@ export default class Bot extends Game {
     return moves;
   }
 
-  getOptimalMove(): number {
+  getOptimalMove(): number | undefined {
     const legalMoves = this.getAllLegalMoves();
 
     if (legalMoves.length === 1) {
@@ -639,6 +639,10 @@ export default class Bot extends Game {
 
     const randomIndex = Math.floor(Math.random() * maxScoreMoves.length);
     const selectedMove = maxScoreMoves[randomIndex];
+
+    if (!selectedMove) {
+      return;
+    }
 
     console.log(Bot.getUciFromMove(selectedMove.move), selectedMove.score / 1000);
 
