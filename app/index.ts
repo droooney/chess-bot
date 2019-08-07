@@ -1,3 +1,3 @@
 import LichessBot from './LichessBot';
 
-new LichessBot('1NGMeQ6253r2WI1W', 'tonygbot');
+new LichessBot(process.env.TOKEN || '', process.env.NAME || '');
