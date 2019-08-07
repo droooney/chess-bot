@@ -71,8 +71,8 @@ export default class Bot extends Game {
         (isWhite ? y < 5 : y > 2)
           ? 0
           : (isWhite ? y === 5 : y === 2)
-            ? 20
-            : 50
+            ? 200
+            : 500
       );
     }
 
@@ -85,7 +85,7 @@ export default class Bot extends Game {
     for (const pieceId in pieces) {
       if (pieces[pieceId].type === PieceType.BISHOP) {
         if (++bishopsCount === 2) {
-          return 50;
+          return 500;
         }
       }
     }
@@ -112,27 +112,26 @@ export default class Bot extends Game {
         const square = legalMoves[i];
         const file = square & 7;
         const rank = square >> 3;
-        const distanceToOpponentKing = (
-          (file > opponentKingFile ? opponentKingFile - file : file - opponentKingFile)
-          + (rank > opponentKingRank ? opponentKingRank - rank : rank - opponentKingRank)
-        );
+        const distanceToOpponentKing = Math.abs(opponentKingFile - file) + Math.abs(opponentKingRank - rank);
 
         score += (
           isEndgame || (isWhite ? rank < 3 : rank > 4)
-            ? 3
+            ? 10
             : (isWhite ? rank === 3 : rank === 4)
-              ? 4
+              ? 11
               : (isWhite ? rank === 4 : rank === 3)
-                ? 5
+                ? 12
                 : (isWhite ? rank === 5 : rank === 2)
-                  ? 6
-                  : 7
+                  ? 13
+                  : (isWhite ? rank === 6 : rank === 1)
+                    ? 14
+                    : 15
         ) + (
           distanceToOpponentKing > 2
             ? 0
             : distanceToOpponentKing === 2
-              ? 5
-              : 15
+              ? 50
+              : 150
         );
       }
     }
@@ -154,14 +153,14 @@ export default class Bot extends Game {
           && rank === Bot.pieceRanks[color]
         )
           ? piece.type === PieceType.KNIGHT
-            ? -30
-            : -50
+            ? -300
+            : -500
           : (
             piece.type === PieceType.PAWN
             && (file === 3 || file === 4)
             && rank === Bot.pawnRanks[color]
           )
-            ? -25
+            ? -250
             : 0
       );
     }
@@ -174,7 +173,7 @@ export default class Bot extends Game {
 
     for (const file in pawnFiles) {
       if (pawnFiles[file] > 1) {
-        score -= 30;
+        score -= 300;
       }
     }
 
@@ -182,7 +181,7 @@ export default class Bot extends Game {
   }
 
   evalHangingPieces(color: Color, pieces: ColorPieces, opponentPieces: ColorPieces): number {
-    const coeff = this.turn === color ? 10 : 100;
+    const coeff = this.turn === color ? 100 : 1000;
     let score = 0;
     const defendedSquares: { [square in number]: Piece[]; } = {};
     const attackedSquares: { [square in number]: Piece[]; } = {};
@@ -348,16 +347,16 @@ export default class Bot extends Game {
     const kingRank = king.square >> 3;
     const isWhite = color === Color.WHITE;
 
-    if (isWhite ? kingRank >= 4 : kingRank < 5) {
-      return -500;
+    if (isWhite ? kingRank >= 4 : kingRank <= 5) {
+      return -5000;
     }
 
     if (isWhite ? kingRank === 3 : kingRank === 4) {
-      return -400;
+      return -4000;
     }
 
     if (isWhite ? kingRank === 2 : kingRank === 5) {
-      return -300;
+      return -3000;
     }
 
     if (
@@ -366,16 +365,16 @@ export default class Bot extends Game {
       && kingFile < 6
     ) {
       return kingFile === 3 || kingFile === 4
-        ? -150
-        : -100;
+        ? -1500
+        : -1000;
     }
 
     if (kingFile === 3 || kingFile === 4) {
-      return -50;
+      return -500;
     }
 
     if (kingFile === 5) {
-      return -25;
+      return -250;
     }
 
     const upperRank = isWhite
@@ -389,7 +388,7 @@ export default class Bot extends Game {
       this.board[Bot.squares[upperRank][kingFile + 1]]
     ];
 
-    let score = (isWhite ? kingRank === 0 : kingRank === 7) && kingFile !== 2 ? 30 : 0;
+    let score = (isWhite ? kingRank === 0 : kingRank === 7) && kingFile !== 2 ? 300 : 0;
 
     for (let i = 0, l = defendingPieces.length; i < l; i++) {
       const piece = defendingPieces[i];
@@ -398,11 +397,11 @@ export default class Bot extends Game {
         score += (
           (piece.square >> 3) === upperRank
             ? piece.type === PieceType.PAWN
-              ? 20
-              : 10
+              ? 200
+              : 100
             : piece.type === PieceType.PAWN
-              ? 10
-              : 5
+              ? 100
+              : 50
         );
       }
     }
@@ -414,7 +413,7 @@ export default class Bot extends Game {
     let score = 0;
 
     for (const pieceId in pieces) {
-      score += Bot.piecesWorth[pieces[pieceId].type] * 100;
+      score += Bot.piecesWorth[pieces[pieceId].type] * 1000;
     }
 
     return score;
@@ -429,6 +428,7 @@ export default class Bot extends Game {
     pawns: for (let i = 0, l = pawns.length; i < l; i++) {
       const pawn = pawns[i];
       const file = pawn.square & 7;
+      const rank = pawn.square >> 3;
 
       if (file in passedPawnFiles) {
         continue;
@@ -442,7 +442,7 @@ export default class Bot extends Game {
         if (
           opponentFile >= file - 1
           && opponentFile <= file + 1
-          && (isWhite ? opponentRank > file : opponentRank < file)
+          && (isWhite ? opponentRank > rank : opponentRank < rank)
         ) {
           continue pawns;
         }
@@ -452,10 +452,10 @@ export default class Bot extends Game {
       passedPawnCount++;
     }
 
-    let score = passedPawnCount * 50;
+    let score = passedPawnCount * 500;
 
     for (const file in passedPawnFiles) {
-      score += (passedPawnFiles[+file + 1]) ? 1 : 0;
+      score += passedPawnFiles[+file + 1] || passedPawnFiles[+file - 1] ? 250 : 0;
     }
 
     return score;
@@ -479,7 +479,7 @@ export default class Bot extends Game {
       }
     }
 
-    return (islandsCount - 1) * -20;
+    return (islandsCount - 1) * -200;
   }
 
   evalRooksActivity(pieces: ColorPieces, pawnFiles: PawnFiles): number {
@@ -489,7 +489,7 @@ export default class Bot extends Game {
       const piece = pieces[pieceId];
 
       if (piece.type === PieceType.ROOK && !((piece.square & 7) in pawnFiles)) {
-        score += 10;
+        score += 100;
       }
     }
 
@@ -526,7 +526,7 @@ export default class Bot extends Game {
         && !(piece.square in defendedSquares)
         && !(piece.square in attackedSquares)
       ) {
-        score -= Bot.piecesWorth[piece.type];
+        score -= Bot.piecesWorth[piece.type] * 10;
       }
     }
 
@@ -640,7 +640,7 @@ export default class Bot extends Game {
     const randomIndex = Math.floor(Math.random() * maxScoreMoves.length);
     const selectedMove = maxScoreMoves[randomIndex];
 
-    console.log(Bot.getUciFromMove(selectedMove.move), selectedMove.score);
+    console.log(Bot.getUciFromMove(selectedMove.move), selectedMove.score / 1000);
 
     return selectedMove.move;
   }

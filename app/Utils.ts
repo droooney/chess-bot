@@ -19,7 +19,7 @@ export interface MoveInGame {
   promotedPawn: Piece | null;
   wasCheck: boolean;
   prevResult: Result | null;
-  prevPositionString: string;
+  prevPosition: bigint;
   prevPossibleEnPassant: EnPassant | null;
   prevPossibleCastling: number;
   prevPliesWithoutCaptureOrPawnMove: number;
@@ -168,24 +168,27 @@ export default class Utils {
         : null;
     })
   ];
-  static pawnEnPassantSquares: { [color in Color]: { [square in number]: number; }; } = [
-    Utils.allSquares.map((square) => {
-      const x = square & 7;
-      const y = square >> 3;
+  static pawnEnPassantSquaresMap: { [square in number]: number; } = [
+    ...Utils.squares[1],
+    ...Utils.squares[6]
+  ].reduce((squares, square) => {
+    const x = square & 7;
+    const y = square >> 3;
 
-      return y === 1
+    return {
+      ...squares,
+      [square]: y === 1
         ? Utils.squares[y + 1][x]
-        : -1;
-    }),
-    Utils.allSquares.map((square) => {
-      const x = square & 7;
-      const y = square >> 3;
-
-      return y === 6
-        ? Utils.squares[y - 1][x]
-        : -1;
-    })
-  ];
+        : Utils.squares[y - 1][x]
+    };
+  }, {} as { [square in number]: number; });
+  static pawnEnPassantSquares: { [square in number]: true; } = [
+    ...Utils.squares[2],
+    ...Utils.squares[5]
+  ].reduce((squares, square) => ({
+    ...squares,
+    [square]: true
+  }), {} as { [square in number]: true; });
   static pawnCaptureMoves: { [color in Color]: { [square in number]: number[]; }; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;

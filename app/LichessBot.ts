@@ -26,6 +26,7 @@ export default class LichessBot {
 
   createStream<T>(url: string): AsyncIterable<T> {
     const results: IteratorResult<T>[] = [];
+    let result = '';
     let flush: ((data: IteratorResult<T>) => void) | null = null;
 
     return {
@@ -33,15 +34,23 @@ export default class LichessBot {
         this.sendRequest(url, 'get', async (res) => {
           for await (const data of res) {
             if (data instanceof Buffer) {
-              data.toString('utf8').split('\n').forEach((data) => {
+              const lines = data.toString('utf8').split('\n');
+
+              lines.forEach((data, ix) => {
                 if (data) {
+                  data = ix === 0
+                    ? result + data
+                    : data;
+
                   try {
                     results.push({
                       done: false,
                       value: JSON.parse(data)
                     });
+
+                    result = '';
                   } catch (err) {
-                    /* empty */
+                    result = data;
                   }
                 }
               });
@@ -56,12 +65,12 @@ export default class LichessBot {
             }
           }
 
-          const result = { done: true } as IteratorResult<T>;
+          const end = { done: true } as IteratorResult<T>;
 
           if (flush) {
-            flush(result);
+            flush(end);
           } else {
-            results.push(result);
+            results.push(end);
           }
         });
 

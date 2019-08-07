@@ -1,3 +1,5 @@
+import * as _ from 'lodash';
+
 import Utils, {
   Board,
   CastlingSide,
@@ -16,53 +18,57 @@ export enum GetPossibleMovesType {
 }
 
 export default class Game extends Utils {
-  static getStartingPieces(): { [color in Color]: { [id in number]: Piece; }; } {
-    let id = 0;
-    const piece = (color: Color, type: PieceType, x: number, y: number): Piece => ({
-      id: id++,
-      color,
-      type,
-      square: Game.squares[y][x]
-    });
-    const pieces = [
-      PieceType.ROOK,
-      PieceType.KNIGHT,
-      PieceType.BISHOP,
-      PieceType.QUEEN,
-      PieceType.KING,
-      PieceType.BISHOP,
-      PieceType.KNIGHT,
-      PieceType.ROOK,
-    ];
-    const pawns = new Array<PieceType>(8).fill(PieceType.PAWN);
-    const getAllPieces = (color: Color): { [id in number]: Piece; } => [
-      ...pieces.map((type, x) => piece(color, type, x, color === Color.WHITE ? 0 : 7)),
-      ...pawns.map((type, x) => piece(color, type, x, color === Color.WHITE ? 1 : 6)),
-    ].reduce((pieces, piece) => {
-      pieces[piece.id] = piece;
+  generateKey = (): bigint => {
+    let n = 0n;
 
-      return pieces;
-    }, {} as { [id in number]: Piece; });
+    while (!n || (n as any) in this.keys) {
+      n = 0n;
 
-    return [
-      getAllPieces(Color.WHITE),
-      getAllPieces(Color.BLACK)
-    ];
-  }
+      for (let i = 0; i < 64; i++) {
+        n = n << 1n | (Math.random() > 0.5 ? 1n : 0n);
+      }
+    }
+
+    this.keys[n as any] = true;
+
+    return n;
+  };
 
   turn: Color = Color.WHITE;
   result: Result | null = null;
   isCheck: boolean = false;
   board: Board = Game.allSquares.map(() => null);
   kings: { [color in Color]: Piece; };
-  pieces: { [color in Color]: ColorPieces; } = Game.getStartingPieces();
+  keys: { [key in string]: true; } = {};
+  pieces: { [color in Color]: ColorPieces; } = this.getStartingPieces();
   pieceCounts: { [color in Color]: number; } = [0, 0];
   moves: MoveInGame[] = [];
-  positionString: string;
-  positions: { [position in string]: number; } = {};
+  position: bigint = 0n;
+  positions: Map<bigint, number> = new Map();
   possibleCastling: number = 15;
   possibleEnPassant: EnPassant | null = null;
   pliesWithoutCaptureOrPawnMove: number = 0;
+  turnKey = this.generateKey();
+  castlingKeys: bigint[] = new Array(16).fill(0).map(this.generateKey);
+  enPassantKeys: { [square in number]: bigint; } = _.mapValues(Game.pawnEnPassantSquares, this.generateKey);
+  pieceKeys: { [color in Color]: { [pieceType in PieceType]: { [square in number]: bigint; }; }; } = [
+    [
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey)
+    ],
+    [
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey),
+      Game.allSquares.map(this.generateKey)
+    ]
+  ];
 
   constructor() {
     super();
@@ -77,7 +83,7 @@ export default class Game extends Utils {
       }
     };
 
-    this.positionString = '*'.repeat(64) + this.getPositionStringWithoutBoard();
+    this.position ^= this.turnKey ^ this.castlingKeys[this.possibleCastling];
     this.kings = [findKing(Color.WHITE)!, findKing(Color.BLACK)!];
 
     this.setStartingData();
@@ -101,10 +107,6 @@ export default class Game extends Utils {
     }
 
     return legalMoves;
-  }
-
-  getPositionStringWithoutBoard(): string {
-    return `${this.turn}${this.possibleCastling} ${this.possibleEnPassant ? `${this.possibleEnPassant.square}` : ''}`;
   }
 
   getPossibleMoves(piece: Piece, type: GetPossibleMovesType): number[] {
@@ -216,6 +218,40 @@ export default class Game extends Utils {
     return possibleMoves;
   }
 
+  getStartingPieces(): { [color in Color]: { [id in number]: Piece; }; } {
+    let id = 0;
+    const piece = (color: Color, type: PieceType, x: number, y: number): Piece => ({
+      id: id++,
+      color,
+      type,
+      square: Game.squares[y][x]
+    });
+    const pieces = [
+      PieceType.ROOK,
+      PieceType.KNIGHT,
+      PieceType.BISHOP,
+      PieceType.QUEEN,
+      PieceType.KING,
+      PieceType.BISHOP,
+      PieceType.KNIGHT,
+      PieceType.ROOK,
+    ];
+    const pawns = new Array<PieceType>(8).fill(PieceType.PAWN);
+    const getAllPieces = (color: Color): { [id in number]: Piece; } => [
+      ...pieces.map((type, x) => piece(color, type, x, color === Color.WHITE ? 0 : 7)),
+      ...pawns.map((type, x) => piece(color, type, x, color === Color.WHITE ? 1 : 6)),
+    ].reduce((pieces, piece) => {
+      pieces[piece.id] = piece;
+
+      return pieces;
+    }, {} as { [id in number]: Piece; });
+
+    return [
+      getAllPieces(Color.WHITE),
+      getAllPieces(Color.BLACK)
+    ];
+  }
+
   isAttackedByOpponentPiece(square: number, opponentColor: Color): boolean {
     const opponentPieces = this.pieces[opponentColor];
 
@@ -239,7 +275,7 @@ export default class Game extends Utils {
   isDraw(): boolean {
     return (
       this.pliesWithoutCaptureOrPawnMove >= 100
-      || this.positions[this.positionString] >= 3
+      || this.positions.get(this.position)! >= 3
       || this.isStalemate()
       || this.isInsufficientMaterial()
     );
@@ -331,8 +367,8 @@ export default class Game extends Utils {
   }
 
   movePiece(piece: Piece, square: number) {
-    this.positionString = this.positionString.slice(0, piece.square) + '*' + this.positionString.slice(piece.square + 1);
-    this.positionString = this.positionString.slice(0, square) + Game.pieceLiterals[piece.color][piece.type] + this.positionString.slice(square + 1);
+    this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
+    this.position ^= this.pieceKeys[piece.color][piece.type][square];
 
     this.board[piece.square] = null;
     this.board[square] = piece;
@@ -353,7 +389,7 @@ export default class Game extends Utils {
     const changedPieces: { piece: Piece; oldSquare: number; }[] = [{ piece, oldSquare: from }];
     const wasCheck = this.isCheck;
     const prevResult = this.result;
-    const prevPositionString = this.positionString;
+    const prevPosition = this.position;
     const prevPossibleEnPassant = this.possibleEnPassant;
     const prevPossibleCastling = this.possibleCastling;
     const prevPliesWithoutCaptureOrPawnMove = this.pliesWithoutCaptureOrPawnMove;
@@ -409,18 +445,28 @@ export default class Game extends Utils {
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
+      const enPassantSquare = Game.pawnEnPassantSquaresMap[from];
+
       this.possibleEnPassant = {
-        square: Game.pawnEnPassantSquares[pieceColor][from],
+        square: enPassantSquare,
         pieceSquare: to
       };
+      this.position ^= this.enPassantKeys[enPassantSquare];
     } else {
       this.possibleEnPassant = null;
     }
 
+    this.position ^= this.turnKey;
+    this.position ^= this.castlingKeys[prevPossibleCastling];
+    this.position ^= this.castlingKeys[this.possibleCastling];
+
+    if (prevPossibleEnPassant) {
+      this.position ^= this.enPassantKeys[prevPossibleEnPassant.square];
+    }
+
     this.turn = nextTurn;
     this.isCheck = this.isInCheck(this.turn);
-    this.positionString = this.positionString.slice(0, 64) + this.getPositionStringWithoutBoard();
-    this.positions[this.positionString] = this.positions[this.positionString] + 1 || 1;
+    this.positions.set(this.position, this.positions.get(this.position)! + 1 || 1);
 
     if (constructResult) {
       if (this.isCheckmate()) {
@@ -437,7 +483,7 @@ export default class Game extends Utils {
       promotedPawn: promotion ? piece : null,
       wasCheck,
       prevResult,
-      prevPositionString,
+      prevPosition,
       prevPossibleEnPassant,
       prevPossibleCastling,
       prevPliesWithoutCaptureOrPawnMove
@@ -451,7 +497,7 @@ export default class Game extends Utils {
 
     if (removeFromBoard) {
       this.board[piece.square] = null;
-      this.positionString = this.positionString.slice(0, piece.square) + '*' + this.positionString.slice(piece.square + 1);
+      this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
     }
   }
 
@@ -466,7 +512,7 @@ export default class Game extends Utils {
         promotedPawn,
         wasCheck,
         prevResult,
-        prevPositionString,
+        prevPosition,
         prevPossibleEnPassant,
         prevPossibleCastling,
         prevPliesWithoutCaptureOrPawnMove
@@ -491,13 +537,13 @@ export default class Game extends Utils {
       }
 
       this.isCheck = wasCheck;
-      this.positions[this.positionString]--;
+      this.positions.set(this.position, this.positions.get(this.position)! - 1);
 
-      if (!this.positions[this.positionString]) {
-        delete this.positions[this.positionString];
+      if (!this.positions.get(this.position)) {
+        this.positions.delete(this.position);
       }
 
-      this.positionString = prevPositionString;
+      this.position = prevPosition;
       this.possibleEnPassant = prevPossibleEnPassant;
       this.possibleCastling = prevPossibleCastling;
       this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
@@ -511,8 +557,8 @@ export default class Game extends Utils {
       for (const pieceId in this.pieces[color]) {
         const piece = this.pieces[color][pieceId];
 
-        this.movePiece(piece, piece.square);
-
+        this.board[piece.square] = piece;
+        this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
         this.pieceCounts[color]++;
       }
     };
