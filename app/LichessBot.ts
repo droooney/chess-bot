@@ -96,12 +96,13 @@ export default class LichessBot {
   }
 
   handleChallenge(challenge: LichessChallenge) {
+    console.log(challenge);
     console.log(`got challenge from ${challenge.challenger.name}: ${
       challenge.variant.name} ${challenge.speed} ${challenge.rated ? 'rated' : 'unrated'} game`);
 
     if (
       !challenge.rated
-      && challenge.variant.key === 'standard'
+      && (challenge.variant.key === 'standard' || challenge.variant.key === 'fromPosition')
     ) {
       this.sendRequest(`/api/challenge/${challenge.id}/accept`, 'post');
     } else {
@@ -116,7 +117,12 @@ export default class LichessBot {
 
     for await (const event of stream) {
       if (event.type === 'gameFull') {
-        const bot = this.bots[gameId] = new Bot(event.white.id === this.name ? Color.WHITE : Color.BLACK);
+        console.log(event);
+
+        const bot = this.bots[gameId] = new Bot(
+          event.initialFen === 'startpos' ? Bot.standardFen : event.initialFen,
+          event.white.id === this.name ? Color.WHITE : Color.BLACK
+        );
 
         this.handleGameState(gameId, bot, event.state);
       } else if (event.type === 'gameState') {

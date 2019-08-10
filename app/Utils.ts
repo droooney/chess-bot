@@ -1,3 +1,5 @@
+import * as _ from 'lodash';
+
 export enum Color {
   WHITE,
   BLACK
@@ -22,7 +24,7 @@ export interface MoveInGame {
   wasCheck: boolean;
   prevResult: Result | null;
   prevPosition: bigint;
-  prevPossibleEnPassant: EnPassant | null;
+  prevPossibleEnPassant: number | null;
   prevPossibleCastling: number;
   prevPliesWithoutCaptureOrPawnMove: number;
 }
@@ -63,15 +65,10 @@ export enum Result {
 
 export type Board = { [square in number]: Piece | null; };
 
-export interface EnPassant {
-  square: number;
-  pieceSquare: number;
-}
-
 export default class Utils {
   static oppositeColor: { [color in Color]: Color; } = [Color.BLACK, Color.WHITE];
-  static pieceLiteral: string = 'kqrbnp';
-  static piecesWorth: { [type in PieceType]: number; } = [100, 9, 5, 3, 3, 1];
+  static pieceLiterals: { [color in Color]: string; } = ['KQRBNP', 'kqrbnp'];
+  static piecesWorth: { [type in PieceType]: number; } = [1000, 16, 8, 5, 5, 1];
   static pieceFromLiteral: { [literal in string]: PieceType; } = {
     k: PieceType.KING,
     q: PieceType.QUEEN,
@@ -190,6 +187,11 @@ export default class Utils {
     ...squares,
     [square]: true
   }), {} as { [square in number]: true; });
+  static pawnEnPassantPieceSquares: { [square in number]: number; } = _.mapValues(Utils.pawnEnPassantSquares, (_v, square) => (
+    (+square >> 3) === 2
+      ? +square + 8
+      : +square - 8
+  ));
   static pawnCaptureMoves: { [color in Color]: { [square in number]: number[]; }; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
@@ -212,20 +214,16 @@ export default class Utils {
     Utils.allSquares.slice(56).reduce((squares, square) => ({ ...squares, [square]: true }), {}),
     Utils.allSquares.slice(0, 8).reduce((squares, square) => ({ ...squares, [square]: true }), {})
   ];
-  static castling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [[
-    Castling.WHITE_KING_SIDE,
-    Castling.WHITE_QUEEN_SIDE
-  ], [
-    Castling.BLACK_KING_SIDE,
-    Castling.BLACK_QUEEN_SIDE
-  ]];
-  static noCastling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [[
-    15 ^ Castling.WHITE_KING_SIDE,
-    15 ^ Castling.WHITE_QUEEN_SIDE
-  ], [
-    15 ^ Castling.BLACK_KING_SIDE,
-    15 ^ Castling.BLACK_QUEEN_SIDE
-  ]];
+  static castling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [
+    [Castling.WHITE_KING_SIDE, Castling.WHITE_QUEEN_SIDE],
+    [Castling.BLACK_KING_SIDE, Castling.BLACK_QUEEN_SIDE]
+  ];
+  static fenCastling: { [side in string]: Castling; } = {
+    K: Castling.WHITE_KING_SIDE,
+    Q: Castling.WHITE_QUEEN_SIDE,
+    k: Castling.BLACK_KING_SIDE,
+    q: Castling.BLACK_QUEEN_SIDE
+  };
   static rookCastlingSides: { [rookSquare in number]: CastlingSide; } = {
     [Utils.squares[0][0]]: CastlingSide.QUEEN,
     [Utils.squares[7][0]]: CastlingSide.QUEEN,
@@ -317,7 +315,7 @@ export default class Utils {
     const from = Utils.getSquareLiteral(move >> 9);
     const to = Utils.getSquareLiteral(move >> 3 & 63);
     const promotion = move & 7
-      ? Utils.pieceLiteral[move & 7]
+      ? Utils.pieceLiterals[Color.BLACK][move & 7]
       : '';
 
     return from + to + promotion;
