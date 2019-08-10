@@ -70,8 +70,7 @@ export interface EnPassant {
 
 export default class Utils {
   static oppositeColor: { [color in Color]: Color; } = [Color.BLACK, Color.WHITE];
-  static pieceLiteral: string = 'KQRBNP';
-  static pieceLiterals: { [color in Color]: string; } = ['KQRBNP', 'kqrbnp'];
+  static pieceLiteral: string = 'kqrbnp';
   static piecesWorth: { [type in PieceType]: number; } = [100, 9, 5, 3, 3, 1];
   static pieceFromLiteral: { [literal in string]: PieceType; } = {
     k: PieceType.KING,
@@ -82,7 +81,7 @@ export default class Utils {
     p: PieceType.PAWN
   };
   static squares: number[][] = new Array(8).fill(0).map((_v, y) => (
-    new Array(8).fill(0).map((_v, x) => y * 8 + x)
+    new Array(8).fill(0).map((_v, x) => y << 3 | x)
   ));
   static allSquares: number[] = new Array(64).fill(0).map((_v, i) => i);
   static diagonalMoves: { [square in number]: number[][]; } = Utils.allSquares.map((square) => [

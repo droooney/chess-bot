@@ -187,6 +187,10 @@ export default class LichessBot {
         this.handleGameStart(event.game.id);
       }
     }
+
+    console.log('stream closed, opening again');
+
+    this.monitorLobbyEvents();
   }
 
   sendMove(gameId: string, move: number) {
