@@ -4,6 +4,10 @@ import { Color, ColorPieces, Piece, PieceType, Result } from './Utils';
 type PawnFiles = { [file in number]: number; };
 
 export default class Bot extends Game {
+  static SEARCH_DEPTH = 1;
+  static OPTIMAL_LINES_COUNT = 5;
+  static OPTIMAL_MOVE_THRESHOLD = 50;
+
   color: Color;
   opponentColor: Color;
   evals: number = 0;
@@ -103,7 +107,7 @@ export default class Bot extends Game {
       + this.evalDoubledPawns(pawnFiles)
       + this.evalHangingPieces(color, pieces, opponentPieces)
       + this.evalKingSafety(color, king, isEndgame)
-      + this.evalMaterial(pieces)
+      + this.evalMaterial(color)
       + this.evalPassedPawns(color, opponentColor, pawns)
       + this.evalPawnIslands(pawnFiles)
       + this.evalRooksActivity(pieces, pawnFiles)
@@ -114,18 +118,17 @@ export default class Bot extends Game {
   evalAdvancedPawns(color: Color, pawns: Piece[]): number {
     const timestamp = Date.now();
     let score = 0;
-    const isWhite = color === Color.WHITE;
 
     for (let i = 0, l = pawns.length; i < l; i++) {
       const pawn = pawns[i];
       const y = pawn.square >> 3;
 
       score += (
-        (isWhite ? y < 5 : y > 2)
-          ? 0
-          : (isWhite ? y === 5 : y === 2)
+        y === Bot.ranks.RANK_7[color]
+          ? 500
+          : y === Bot.ranks.RANK_6[color]
             ? 200
-            : 500
+            : 0
       );
     }
 
@@ -154,8 +157,7 @@ export default class Bot extends Game {
   evalControl(color: Color, opponentKing: Piece, pieces: ColorPieces, isEndgame: boolean): number {
     const timestamp = Date.now();
     let score = 0;
-    const opponentKingFile = opponentKing.square & 7;
-    const opponentKingRank = opponentKing.square >> 3;
+    const distances = Bot.distances[opponentKing.square];
     const isWhite = color === Color.WHITE;
 
     for (const pieceId in pieces) {
@@ -169,20 +171,19 @@ export default class Bot extends Game {
 
       for (let i = 0, l = legalMoves.length; i < l; i++) {
         const square = legalMoves[i];
-        const file = square & 7;
         const rank = square >> 3;
-        const distanceToOpponentKing = Math.abs(opponentKingFile - file) + Math.abs(opponentKingRank - rank);
+        const distanceToOpponentKing = distances[square];
 
         score += (
-          isEndgame || (isWhite ? rank < 3 : rank > 4)
+          isEndgame || (isWhite ? rank < Bot.ranks.RANK_4[Color.WHITE] : rank > Bot.ranks.RANK_4[Color.BLACK])
             ? 10
-            : (isWhite ? rank === 3 : rank === 4)
+            : rank === Bot.ranks.RANK_4[color]
               ? 11
-              : (isWhite ? rank === 4 : rank === 3)
+              : rank === Bot.ranks.RANK_5[color]
                 ? 12
-                : (isWhite ? rank === 5 : rank === 2)
+                : rank === Bot.ranks.RANK_6[color]
                   ? 13
-                  : (isWhite ? rank === 6 : rank === 1)
+                  : rank === Bot.ranks.RANK_7[color]
                     ? 14
                     : 15
         ) + (
@@ -212,15 +213,15 @@ export default class Bot extends Game {
       score += (
         (
           (piece.type === PieceType.KNIGHT || piece.type === PieceType.BISHOP)
-          && rank === Bot.pieceRanks[color]
+          && rank === Bot.ranks.RANK_1[color]
         )
           ? piece.type === PieceType.KNIGHT
             ? -300
             : -500
           : (
             piece.type === PieceType.PAWN
-            && (file === 3 || file === 4)
-            && rank === Bot.pawnRanks[color]
+            && (file === Bot.files.FILE_D || file === Bot.files.FILE_E)
+            && rank === Bot.ranks.RANK_2[color]
           )
             ? -250
             : 0
@@ -411,46 +412,43 @@ export default class Bot extends Game {
   }
 
   evalKingSafety(color: Color, king: Piece, isEndgame: boolean): number {
-    const timestamp = Date.now();
-
     if (isEndgame) {
-      this.evalKingSafetyTime += Date.now() - timestamp;
-
-      return this.getLegalMoves(king).length * 10;
+      return 0;
     }
 
+    const timestamp = Date.now();
     const kingFile = king.square & 7;
     const kingRank = king.square >> 3;
     const isWhite = color === Color.WHITE;
 
-    if (isWhite ? kingRank >= 4 : kingRank <= 5) {
-      return -5000;
-    }
-
-    if (isWhite ? kingRank === 3 : kingRank === 4) {
-      return -4000;
-    }
-
-    if (isWhite ? kingRank === 2 : kingRank === 5) {
+    if (isWhite ? kingRank > Bot.ranks.RANK_4[Color.WHITE] : kingRank < Bot.ranks.RANK_4[Color.WHITE]) {
       return -3000;
     }
 
+    if (kingRank === Bot.ranks.RANK_4[color]) {
+      return -2000;
+    }
+
+    if (kingRank === Bot.ranks.RANK_3[color]) {
+      return -1000;
+    }
+
     if (
-      (isWhite ? kingRank === 1 : kingRank === 6)
-      && kingFile >= 2
-      && kingFile < 6
+      kingRank === Bot.ranks.RANK_2[color]
+      && kingFile >= Bot.files.FILE_C
+      && kingFile < Bot.files.FILE_G
     ) {
-      return kingFile === 3 || kingFile === 4
-        ? -1500
-        : -1000;
+      return kingFile === Bot.files.FILE_D || kingFile === Bot.files.FILE_E
+        ? -750
+        : -500;
     }
 
-    if (kingFile === 3 || kingFile === 4) {
-      return -500;
-    }
-
-    if (kingFile === 5) {
+    if (kingFile === Bot.files.FILE_D || kingFile === Bot.files.FILE_E) {
       return -250;
+    }
+
+    if (kingFile === Bot.files.FILE_F) {
+      return -100;
     }
 
     const upperRank = isWhite
@@ -464,7 +462,7 @@ export default class Bot extends Game {
       this.board[Bot.squares[upperRank][kingFile + 1]]
     ];
 
-    let score = (isWhite ? kingRank === 0 : kingRank === 7) && kingFile !== 2 ? 300 : 0;
+    let score = kingRank === Bot.ranks.RANK_1[color] && kingFile === Bot.files.FILE_C ? 0 : 100;
 
     for (let i = 0, l = defendingPieces.length; i < l; i++) {
       const piece = defendingPieces[i];
@@ -473,11 +471,11 @@ export default class Bot extends Game {
         score += (
           (piece.square >> 3) === upperRank
             ? piece.type === PieceType.PAWN
-              ? 200
-              : 100
-            : piece.type === PieceType.PAWN
               ? 100
               : 50
+            : piece.type === PieceType.PAWN
+              ? 50
+              : 25
         );
       }
     }
@@ -487,13 +485,9 @@ export default class Bot extends Game {
     return score;
   }
 
-  evalMaterial(pieces: ColorPieces): number {
+  evalMaterial(color: Color): number {
     const timestamp = Date.now();
-    let score = 0;
-
-    for (const pieceId in pieces) {
-      score += Bot.piecesWorth[pieces[pieceId].type] * 1000;
-    }
+    const score = this.material[color] * 1000;
 
     this.evalMaterialTime += Date.now() - timestamp;
 
@@ -711,49 +705,58 @@ export default class Bot extends Game {
       return legalMoves[0];
     }
 
-    const legalMovesWithScores = legalMoves.map((move) => {
-      this.performMove(move, true);
+    const optimalLines = new Array(Bot.OPTIMAL_LINES_COUNT).fill(0).map(() => ({ move: 0, score: -Infinity }));
 
-      const score = this.eval();
+    legalMoves
+      .map((move) => {
+        this.performMove(move, true);
 
-      this.revertLastMove();
+        const score = this.eval();
 
-      return {
-        move,
-        score
-      };
-    });
+        this.revertLastMove();
 
-    legalMovesWithScores.sort(({ score: score1 }, { score: score2 }) => score2 - score1);
+        return {
+          move,
+          score
+        };
+      })
+      .sort(({ score: score1 }, { score: score2 }) => score2 - score1)
+      .forEach(({ move }) => {
+        this.performMove(move, true);
 
-    let maxScore = -Infinity;
-    const scores = legalMovesWithScores.map(({ move }) => {
-      this.performMove(move, true);
+        const score = this.executeMiniMax(Bot.SEARCH_DEPTH, false, optimalLines[Bot.OPTIMAL_LINES_COUNT - 1].score);
+        const index = optimalLines.findIndex(({ move, score: optimalScore }) => !move || score > optimalScore);
 
-      const score = this.executeMiniMax(1, false, maxScore);
+        if (index !== -1) {
+          optimalLines.splice(index, 0, { move, score });
+          optimalLines.pop();
+        }
 
-      if (score > maxScore) {
-        maxScore = score;
+        this.revertLastMove();
+
+        return {
+          move,
+          score
+        };
+      });
+
+    for (let i = Bot.OPTIMAL_LINES_COUNT - 1; i > 0; i--) {
+      if (optimalLines[0].score - optimalLines[i].score > Bot.OPTIMAL_MOVE_THRESHOLD) {
+        optimalLines[i] = { move: 0, score: -Infinity };
+      } else {
+        break;
       }
+    }
 
-      this.revertLastMove();
-
-      return {
-        move,
-        score
-      };
-    });
-
-    const maxScoreMoves = scores.filter(({ score }) => score === maxScore);
-
-    const randomIndex = Math.floor(Math.random() * maxScoreMoves.length);
-    const selectedMove = maxScoreMoves[randomIndex];
+    const optimalMoves = optimalLines.filter(({ move }) => move);
+    const randomIndex = Math.floor(Math.random() * optimalMoves.length);
+    const selectedMove = optimalMoves[randomIndex];
 
     if (!selectedMove) {
       return;
     }
 
-    // console.log(scores.map(({ move, score }) => ({ move: Game.getUciFromMove(move), score })));
+    console.log(optimalMoves.map(({ move, score }) => ({ move: Game.getUciFromMove(move), score })));
     console.log(Bot.getUciFromMove(selectedMove.move), selectedMove.score / 1000);
 
     return selectedMove.move;

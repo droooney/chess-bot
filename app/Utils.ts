@@ -287,8 +287,32 @@ export default class Utils {
     [Utils.squares[0][5]]: Utils.squares[0][7],
     [Utils.squares[7][5]]: Utils.squares[7][7]
   };
-  static pieceRanks: { [color in Color]: number; } = [0, 7];
-  static pawnRanks: { [color in Color]: number; } = [1, 6];
+  static ranks = {
+    RANK_1: [0, 7],
+    RANK_2: [1, 6],
+    RANK_3: [2, 5],
+    RANK_4: [3, 4],
+    RANK_5: [4, 3],
+    RANK_6: [5, 2],
+    RANK_7: [6, 1],
+    RANK_8: [7, 0]
+  };
+  static files = {
+    FILE_A: 0,
+    FILE_B: 1,
+    FILE_C: 2,
+    FILE_D: 3,
+    FILE_E: 4,
+    FILE_F: 5,
+    FILE_G: 6,
+    FILE_H: 7
+  };
+  static distances: { [square in number]: { [square in number]: number } } = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => (
+      Math.abs((square1 >> 3) - (square2 >> 3))
+      + Math.abs((square1 & 7) - (square2 & 7))
+    ))
+  ));
 
   static getMoveFromUci(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;

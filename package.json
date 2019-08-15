@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "ts-node app/index.ts"
+    "start": "TOKEN=1NGMeQ6253r2WI1W NAME=tonygbot ts-node app/index.ts",
+    "start-dev": "TOKEN=4Gi6xmE4CzdnjHwx NAME=tonygbotdev ts-node app/index.ts"
   },
   "repository": {
     "type": "git",

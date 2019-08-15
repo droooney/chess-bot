@@ -43,6 +43,7 @@ export default class Game extends Utils {
   keys: { [key in string]: true; } = {};
   pieces: { [color in Color]: ColorPieces; } = [{}, {}];
   pieceCounts: { [color in Color]: number; } = [0, 0];
+  material: { [color in Color]: number; } = [0, 0];
   moves: MoveInGame[] = [];
   position: bigint = 0n;
   positions: Map<bigint, number> = new Map();
@@ -338,7 +339,7 @@ export default class Game extends Utils {
   performMove(move: number, constructResult: boolean) {
     const from = move >> 9;
     const to = move >> 3 & 63;
-    const promotion = move & 7;
+    const promotion: PieceType = move & 7;
     const piece = this.board[from]!;
     const {
       type: pieceType,
@@ -402,6 +403,7 @@ export default class Game extends Utils {
 
     if (promotion) {
       piece.type = promotion;
+      this.material[pieceColor] += Game.piecesWorth[promotion] - Game.piecesWorth[PieceType.PAWN];
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
@@ -453,6 +455,7 @@ export default class Game extends Utils {
     delete this.pieces[piece.color][piece.id];
 
     this.pieceCounts[piece.color]--;
+    this.material[piece.color] -= Game.piecesWorth[piece.type];
 
     if (removeFromBoard) {
       this.board[piece.square] = null;
@@ -486,10 +489,12 @@ export default class Game extends Utils {
       if (capturedPiece) {
         this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
         this.pieceCounts[capturedPiece.color]++;
+        this.material[capturedPiece.color] += Game.piecesWorth[capturedPiece.type];
         this.board[capturedPiece.square] = capturedPiece;
       }
 
       if (promotedPawn) {
+        this.material[promotedPawn.color] -= Game.piecesWorth[promotedPawn.type] - Game.piecesWorth[PieceType.PAWN];
         promotedPawn.type = PieceType.PAWN;
       }
 
@@ -535,6 +540,8 @@ export default class Game extends Utils {
 
       if (pieceType === PieceType.KING) {
         this.kings[color] = piece;
+      } else {
+        this.material[color] += Game.piecesWorth[pieceType];
       }
     };
 

@@ -117,8 +117,6 @@ export default class LichessBot {
 
     for await (const event of stream) {
       if (event.type === 'gameFull') {
-        console.log(event);
-
         const bot = this.bots[gameId] = new Bot(
           event.initialFen === 'startpos' ? Bot.standardFen : event.initialFen,
           event.white.id === this.name ? Color.WHITE : Color.BLACK
@@ -196,7 +194,8 @@ export default class LichessBot {
 
     console.log('stream closed, opening again');
 
-    this.monitorLobbyEvents();
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    await this.monitorLobbyEvents();
   }
 
   sendMove(gameId: string, move: number) {
