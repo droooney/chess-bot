@@ -140,7 +140,7 @@ export default class LichessBot {
   handleGameState(gameId: string, bot: Bot, gameState: LichessGameState) {
     if (gameState.moves) {
       gameState.moves.split(' ').slice(bot.moves.length).forEach((uci) => {
-        bot.performMove(Utils.getMoveFromUci(uci), true);
+        bot.performMove(Utils.uciToMove(uci), true);
       });
     }
 
@@ -166,7 +166,7 @@ export default class LichessBot {
         if (keyword === 'move') {
           const [gameId, uci] = additionalData;
 
-          this.sendMove(gameId, Utils.getMoveFromUci(uci));
+          this.sendMove(gameId, Utils.uciToMove(uci));
         } else if (keyword === 'print') {
           const [gameId, prop] = additionalData;
           const bot = this.bots[gameId];
@@ -199,7 +199,7 @@ export default class LichessBot {
   }
 
   sendMove(gameId: string, move: number) {
-    this.sendRequest(`/api/bot/game/${gameId}/move/${Utils.getUciFromMove(move)}`, 'post');
+    this.sendRequest(`/api/bot/game/${gameId}/move/${Utils.moveToUci(move)}`, 'post');
   }
 
   sendRequest(url: string, method: string, callback?: (res: http.IncomingMessage) => void): void {

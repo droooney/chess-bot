@@ -313,11 +313,15 @@ export default class Utils {
       + Math.abs((square1 & 7) - (square2 & 7))
     ))
   ));
+  static directions = {
+    UP: [1, -1],
+    DOWN: [-1, 1]
+  };
 
-  static getMoveFromUci(uci: string): number {
+  static uciToMove(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;
-    const fromSquare = Utils.getSquareFromString(fromX + fromY);
-    const toSquare = Utils.getSquareFromString(toX + toY);
+    const fromSquare = Utils.literalToSquare(fromX + fromY);
+    const toSquare = Utils.literalToSquare(toX + toY);
     let move = fromSquare << 9 | toSquare << 3;
 
     if (promotion) {
@@ -327,17 +331,17 @@ export default class Utils {
     return move;
   }
 
-  static getSquareFromString(squareString: string): number {
-    return (+squareString[1] - 1) * 8 + (squareString.charCodeAt(0) - 97);
+  static literalToSquare(squareString: string): number {
+    return (+squareString[1] - 1) << 3 | (squareString.charCodeAt(0) - 97);
   }
 
-  static getSquareLiteral(square: number): string {
+  static squareToLiteral(square: number): string {
     return `${String.fromCharCode((square & 7) + 97)}${(square >> 3) + 1}`;
   }
 
-  static getUciFromMove(move: number): string {
-    const from = Utils.getSquareLiteral(move >> 9);
-    const to = Utils.getSquareLiteral(move >> 3 & 63);
+  static moveToUci(move: number): string {
+    const from = Utils.squareToLiteral(move >> 9);
+    const to = Utils.squareToLiteral(move >> 3 & 63);
     const promotion = move & 7
       ? Utils.pieceLiterals[Color.BLACK][move & 7]
       : '';

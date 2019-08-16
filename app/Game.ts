@@ -580,7 +580,7 @@ export default class Game extends Utils {
     }
 
     if (enPassantString !== '-') {
-      this.possibleEnPassant = Game.getSquareFromString(enPassantString);
+      this.possibleEnPassant = Game.literalToSquare(enPassantString);
       this.position ^= this.enPassantKeys[this.possibleEnPassant];
     }
 
