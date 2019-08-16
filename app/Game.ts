@@ -507,10 +507,13 @@ export default class Game extends Utils {
       }
 
       this.isCheck = wasCheck;
-      this.positions.set(this.position, this.positions.get(this.position)! - 1);
 
-      if (!this.positions.get(this.position)) {
+      const positionCount = this.positions.get(this.position)!;
+
+      if (positionCount === 1) {
         this.positions.delete(this.position);
+      } else {
+        this.positions.set(this.position, positionCount - 1);
       }
 
       this.position = prevPosition;
