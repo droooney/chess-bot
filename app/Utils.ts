@@ -22,7 +22,6 @@ export interface MoveInGame {
   promotedPawn: Piece | null;
   castlingRook: Piece | null;
   wasCheck: boolean;
-  prevResult: Result | null;
   prevPosition: bigint;
   prevPossibleEnPassant: number | null;
   prevPossibleCastling: number;
@@ -192,6 +191,18 @@ export default class Utils {
       ? +square + 8
       : +square - 8
   ));
+  static pawnEnPassantOpponentPawnSquares: { [square in number]: [number, number]; } = [
+    ...Utils.squares[3],
+    ...Utils.squares[4]
+  ].reduce((squares, square) => {
+    squares[square] = (square & 7) === 0
+      ? [0, square + 1]
+      : (square & 7) === 7
+        ? [square - 1, 0]
+        : [square - 1, square + 1];
+
+    return squares;
+  }, {} as { [square in number]: [number, number]; });
   static pawnCaptureMoves: { [color in Color]: { [square in number]: number[]; }; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;

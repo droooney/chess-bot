@@ -33,6 +33,15 @@ export type LichessSpeed = 'correspondence' | 'ultraBullet' | 'bullet' | 'blitz'
 
 export type LichessColor = 'white' | 'black' | 'random';
 
+export interface LichessCreateChallengeOptions {
+  rated: boolean;
+  clock: {
+    limit: number;
+    increment: number;
+  };
+  color: LichessColor;
+}
+
 export interface LichessChallenge {
   id: string;
   status: string;

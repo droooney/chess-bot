@@ -623,7 +623,7 @@ export default class Bot extends Game {
           move |= PieceType.QUEEN;
         }
 
-        this.performMove(move, true);
+        this.performMove(move);
 
         if (this.isInCheck(turn)) {
           this.revertLastMove();
@@ -686,6 +686,8 @@ export default class Bot extends Game {
     const legalMoves = this.getAllLegalMoves();
 
     if (legalMoves.length === 1) {
+      console.log('only move', Bot.moveToUci(legalMoves[0]));
+
       return legalMoves[0];
     }
 
@@ -693,7 +695,7 @@ export default class Bot extends Game {
 
     legalMoves
       .map((move) => {
-        this.performMove(move, true);
+        this.performMove(move);
 
         const score = this.eval(0);
 
@@ -706,7 +708,7 @@ export default class Bot extends Game {
       })
       .sort(({ score: score1 }, { score: score2 }) => score2 - score1)
       .forEach(({ move }) => {
-        this.performMove(move, true);
+        this.performMove(move);
 
         const score = this.executeMiniMax(0, false, optimalLines[0].score - Bot.OPTIMAL_MOVE_THRESHOLD);
         const index = optimalLines.findIndex(({ score: optimalScore }) => score > optimalScore);

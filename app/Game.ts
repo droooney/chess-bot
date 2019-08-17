@@ -79,21 +79,43 @@ export default class Game extends Utils {
   }
 
   getLegalMoves(piece: Piece): number[] {
-    const turn = this.turn;
     const legalMoves: number[] = [];
     const possibleMoves = this.getPossibleMoves(piece, GetPossibleMovesType.MOVE);
+    const isPawn = piece.type === PieceType.PAWN;
+    const prevSquare = piece.square;
+    const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
+
+    this.board[prevSquare] = null;
 
     for (let i = 0, l = possibleMoves.length; i < l; i++) {
       const square = possibleMoves[i];
+      const capturedPiece = isPawn && square === this.possibleEnPassant
+        ? enPassantCapturedPawn
+        : this.board[square];
 
-      this.performMove(piece.square << 9 | square << 3, false);
+      if (capturedPiece) {
+        this.board[capturedPiece.square] = null;
 
-      if (!this.isInCheck(turn)) {
+        delete this.pieces[capturedPiece.color][capturedPiece.id];
+      }
+
+      this.board[square] = piece;
+      piece.square = square;
+
+      if (!this.isInCheck(this.turn)) {
         legalMoves.push(square);
       }
 
-      this.revertLastMove();
+      this.board[square] = null;
+
+      if (capturedPiece) {
+        this.board[capturedPiece.square] = capturedPiece;
+        this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
+      }
     }
+
+    this.board[prevSquare] = piece;
+    piece.square = prevSquare;
 
     return legalMoves;
   }
@@ -336,7 +358,7 @@ export default class Game extends Utils {
     piece.square = square;
   }
 
-  performMove(move: number, constructResult: boolean) {
+  performMove(move: number) {
     const from = move >> 9;
     const to = move >> 3 & 63;
     const promotion: PieceType = move & 7;
@@ -345,9 +367,8 @@ export default class Game extends Utils {
       type: pieceType,
       color: pieceColor
     } = piece;
-    const nextTurn = Game.oppositeColor[this.turn];
+    const opponentColor = Game.oppositeColor[this.turn];
     const wasCheck = this.isCheck;
-    const prevResult = this.result;
     const prevPosition = this.position;
     const prevPossibleEnPassant = this.possibleEnPassant;
     const prevPossibleCastling = this.possibleCastling;
@@ -391,7 +412,7 @@ export default class Game extends Utils {
       this.removePiece(capturedPiece, isEnPassantCapture);
 
       if (capturedPiece.type === PieceType.ROOK && capturedPiece.square in Game.rookCastlingSides) {
-        this.possibleCastling &= ~Game.castling[nextTurn][Game.rookCastlingSides[capturedPiece.square]];
+        this.possibleCastling &= ~Game.castling[opponentColor][Game.rookCastlingSides[capturedPiece.square]];
       }
     }
 
@@ -407,10 +428,25 @@ export default class Game extends Utils {
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
-      const enPassantSquare = Game.pawnEnPassantSquaresMap[from];
+      const leftPiece = this.board[Game.pawnEnPassantOpponentPawnSquares[to][0]];
+      const rightPiece = this.board[Game.pawnEnPassantOpponentPawnSquares[to][0]];
 
-      this.possibleEnPassant = enPassantSquare;
-      this.position ^= this.enPassantKeys[enPassantSquare];
+      if ((
+        leftPiece
+        && leftPiece.type === PieceType.PAWN
+        && leftPiece.color === opponentColor
+      ) || (
+        rightPiece
+        && rightPiece.type === PieceType.PAWN
+        && rightPiece.color === opponentColor
+      )) {
+        const enPassantSquare = Game.pawnEnPassantSquaresMap[from];
+
+        this.possibleEnPassant = enPassantSquare;
+        this.position ^= this.enPassantKeys[enPassantSquare];
+      } else {
+        this.possibleEnPassant = null;
+      }
     } else {
       this.possibleEnPassant = null;
     }
@@ -423,16 +459,14 @@ export default class Game extends Utils {
       this.position ^= this.enPassantKeys[prevPossibleEnPassant];
     }
 
-    this.turn = nextTurn;
+    this.turn = opponentColor;
     this.isCheck = this.isInCheck(this.turn);
     this.positions.set(this.position, this.positions.get(this.position)! + 1 || 1);
 
-    if (constructResult) {
-      if (this.isCheckmate()) {
-        this.result = pieceColor as 0 | 1;
-      } else if (this.isDraw()) {
-        this.result = Result.DRAW;
-      }
+    if (this.isCheckmate()) {
+      this.result = pieceColor as 0 | 1;
+    } else if (this.isDraw()) {
+      this.result = Result.DRAW;
     }
 
     this.moves.push({
@@ -443,7 +477,6 @@ export default class Game extends Utils {
       promotedPawn: promotion ? piece : null,
       castlingRook,
       wasCheck,
-      prevResult,
       prevPosition,
       prevPossibleEnPassant,
       prevPossibleCastling,
@@ -475,7 +508,6 @@ export default class Game extends Utils {
         promotedPawn,
         castlingRook,
         wasCheck,
-        prevResult,
         prevPosition,
         prevPossibleEnPassant,
         prevPossibleCastling,
@@ -521,7 +553,7 @@ export default class Game extends Utils {
       this.possibleCastling = prevPossibleCastling;
       this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
       this.turn = prevTurn;
-      this.result = prevResult;
+      this.result = null;
     }
   }
 
@@ -589,5 +621,6 @@ export default class Game extends Utils {
 
     this.pliesWithoutCaptureOrPawnMove = +pliesWithoutCaptureOrPawnMoveString;
     this.isCheck = this.isInCheck(this.turn);
+    this.positions.set(this.position, 1);
   }
 }

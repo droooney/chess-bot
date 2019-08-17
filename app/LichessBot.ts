@@ -1,10 +1,12 @@
 import * as https from 'https';
 import * as http from 'http';
+import * as qs from 'qs';
 import * as _ from 'lodash';
 
 import Bot from './Bot';
 import {
   LichessChallenge,
+  LichessCreateChallengeOptions,
   LichessGameEvent,
   LichessGameState,
   LichessLobbyEvent
@@ -24,6 +26,10 @@ export default class LichessBot {
     this.monitorLobbyEvents();
   }
 
+  createChallenge(userId: string, challengeOptions: LichessCreateChallengeOptions) {
+    this.sendRequest(`/api/challenge/${userId}`, 'post', challengeOptions);
+  }
+
   createStream<T>(url: string): AsyncIterable<T> {
     const results: IteratorResult<T>[] = [];
     let result = '';
@@ -31,7 +37,7 @@ export default class LichessBot {
 
     return {
       [Symbol.asyncIterator]: () => {
-        this.sendRequest(url, 'get', async (res) => {
+        this.sendRequest(url, 'get', null, async (res) => {
           for await (const data of res) {
             if (data instanceof Buffer) {
               const lines = data.toString('utf8').split('\n');
@@ -140,7 +146,7 @@ export default class LichessBot {
   handleGameState(gameId: string, bot: Bot, gameState: LichessGameState) {
     if (gameState.moves) {
       gameState.moves.split(' ').slice(bot.moves.length).forEach((uci) => {
-        bot.performMove(Utils.uciToMove(uci), true);
+        bot.performMove(Utils.uciToMove(uci));
       });
     }
 
@@ -167,6 +173,21 @@ export default class LichessBot {
           const [gameId, uci] = additionalData;
 
           this.sendMove(gameId, Utils.uciToMove(uci));
+        } else if (keyword === 'challenge') {
+          const [userId, clock = '3+0', colorString] = additionalData;
+          const color = colorString === 'white' || colorString === 'black'
+            ? colorString
+            : 'random';
+          const [initial, increment = '0'] = clock.split('+');
+
+          this.createChallenge(userId, {
+            rated: false,
+            clock: {
+              limit: +initial * 60,
+              increment: +increment
+            },
+            color
+          });
         } else if (keyword === 'print') {
           const [gameId, prop] = additionalData;
           const bot = this.bots[gameId];
@@ -202,15 +223,24 @@ export default class LichessBot {
     this.sendRequest(`/api/bot/game/${gameId}/move/${Utils.moveToUci(move)}`, 'post');
   }
 
-  sendRequest(url: string, method: string, callback?: (res: http.IncomingMessage) => void): void {
-    https.get({
+  sendRequest(path: string, method: string, body?: object | null, callback?: (res: http.IncomingMessage) => void): void {
+    const data = qs.stringify(body || {});
+    const req = https.request({
       protocol: 'https:',
       hostname: 'lichess.org',
-      path: url,
+      path,
       method,
       headers: {
-        Authorization: `Bearer ${this.token}`
+        Authorization: `Bearer ${this.token}`,
+        // 'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(data)
       }
     }, callback);
+
+    if (data) {
+      console.log(data);
+    }
+
+    req.end(data);
   }
 }
