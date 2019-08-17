@@ -35,11 +35,11 @@ export type LichessColor = 'white' | 'black' | 'random';
 
 export interface LichessCreateChallengeOptions {
   rated: boolean;
-  clock: {
-    limit: number;
-    increment: number;
-  };
-  color: LichessColor;
+  'clock.limit'?: number;
+  'clock.increment'?: number;
+  days?: number;
+  color?: LichessColor;
+  variant?: LichessVariantKey;
 }
 
 export interface LichessChallenge {

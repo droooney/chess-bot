@@ -182,12 +182,14 @@ export default class LichessBot {
 
           this.createChallenge(userId, {
             rated: false,
-            clock: {
-              limit: +initial * 60,
-              increment: +increment
-            },
+            'clock.limit': +initial * 60,
+            'clock.increment': +increment,
             color
           });
+        } else if (keyword === 'resign') {
+          const [gameId] = additionalData;
+
+          this.resign(gameId);
         } else if (keyword === 'print') {
           const [gameId, prop] = additionalData;
           const bot = this.bots[gameId];
@@ -219,6 +221,10 @@ export default class LichessBot {
     await this.monitorLobbyEvents();
   }
 
+  resign(gameId: string) {
+    this.sendRequest(`/api/bot/game/${gameId}/resign`, 'post');
+  }
+
   sendMove(gameId: string, move: number) {
     this.sendRequest(`/api/bot/game/${gameId}/move/${Utils.moveToUci(move)}`, 'post');
   }
@@ -232,14 +238,10 @@ export default class LichessBot {
       method,
       headers: {
         Authorization: `Bearer ${this.token}`,
-        // 'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Type': 'application/x-www-form-urlencoded',
         'Content-Length': Buffer.byteLength(data)
       }
     }, callback);
-
-    if (data) {
-      console.log(data);
-    }
 
     req.end(data);
   }
