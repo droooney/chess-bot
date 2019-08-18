@@ -518,19 +518,19 @@ export default class Bot extends Game {
         isProtectedRightNow
           ? (
             rank === Bot.ranks.RANK_7[color]
-              ? 1500
+              ? 2500
               : rank === Bot.ranks.RANK_6[color]
-                ? 1000
+                ? 1500
                 : rank === Bot.ranks.RANK_5[color]
-                  ? 500
-                  : 250
+                  ? 700
+                  : 300
           )
           : isProtected
             ? (
               rank === Bot.ranks.RANK_7[color]
-                ? 1000
+                ? 1200
                 : rank === Bot.ranks.RANK_6[color]
-                  ? 500
+                  ? 600
                   : rank === Bot.ranks.RANK_5[color]
                     ? 250
                     : 100
@@ -547,7 +547,11 @@ export default class Bot extends Game {
                   ? 250
                   : 0
           )
-          : 0
+          : (
+            rank === Bot.ranks.RANK_7[color]
+              ? 500
+              : 0
+          )
       );
     }
 
