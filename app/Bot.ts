@@ -155,11 +155,11 @@ export default class Bot extends Game {
             ? 10
             : rank === Bot.ranks.RANK_4[color] || rank === Bot.ranks.RANK_5[color] || rank === Bot.ranks.RANK_6[color]
               ? file === Bot.files.FILE_D || file === Bot.files.FILE_E
-                ? 15
+                ? 50
                 : file === Bot.files.FILE_C || file === Bot.files.FILE_F
-                  ? 12
+                  ? 25
                   : 10
-              : 15
+              : 20
         ) + (
           distanceToOpponentKing > 2
             ? 0
