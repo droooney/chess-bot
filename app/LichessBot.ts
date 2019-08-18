@@ -16,11 +16,13 @@ import Utils, { Color, Result } from './Utils';
 export default class LichessBot {
   token: string;
   name: string;
+  isProduction: boolean;
   bots: { [gameId: string]: Bot; } = {};
 
-  constructor(token: string, name: string) {
+  constructor(token: string, name: string, isProduction: boolean) {
     this.token = token;
     this.name = name;
+    this.isProduction = isProduction;
 
     this.monitorCommandLine();
     this.monitorLobbyEvents();
@@ -108,7 +110,10 @@ export default class LichessBot {
 
     if (
       !challenge.rated
-      && (challenge.variant.key === 'standard' || challenge.variant.key === 'fromPosition')
+      && (
+        challenge.variant.key === 'standard'
+        || (!this.isProduction && challenge.variant.key === 'fromPosition')
+      )
     ) {
       this.sendRequest(`/api/challenge/${challenge.id}/accept`, 'post');
     } else {
