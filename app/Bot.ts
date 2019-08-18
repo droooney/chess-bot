@@ -550,7 +550,9 @@ export default class Bot extends Game {
           : (
             rank === Bot.ranks.RANK_7[color]
               ? 500
-              : 0
+              : rank === Bot.ranks.RANK_6[color]
+                ? 200
+                : 0
           )
       );
     }
