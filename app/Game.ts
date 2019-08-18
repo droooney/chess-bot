@@ -181,7 +181,7 @@ export default class Game extends Utils {
             }
           }
 
-          if (this.isAttackedByOpponentPiece(newRookSquare, Game.oppositeColor[pieceColor])) {
+          if (this.isSquareAttacked(newRookSquare, Game.oppositeColor[pieceColor])) {
             continue;
           }
 
@@ -234,22 +234,6 @@ export default class Game extends Utils {
     return possibleMoves;
   }
 
-  isAttackedByOpponentPiece(square: number, opponentColor: Color): boolean {
-    const opponentPieces = this.pieces[opponentColor];
-
-    for (const pieceId in opponentPieces) {
-      const possibleMoves = this.getPossibleMoves(opponentPieces[pieceId], GetPossibleMovesType.ATTACKED);
-
-      for (let i = 0, l = possibleMoves.length; i < l; i++) {
-        if (possibleMoves[i] === square) {
-          return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
   isCheckmate(): boolean {
     return this.isCheck && this.isNoMoves();
   }
@@ -266,7 +250,7 @@ export default class Game extends Utils {
   isInCheck(color: Color): boolean {
     const opponentColor = Game.oppositeColor[color];
 
-    return this.isAttackedByOpponentPiece(this.kings[color].square, opponentColor);
+    return this.isSquareAttacked(this.kings[color].square, opponentColor);
   }
 
   isInsufficientMaterial(): boolean {
@@ -342,6 +326,22 @@ export default class Game extends Utils {
     }
 
     return true;
+  }
+
+  isSquareAttacked(square: number, color: Color): boolean {
+    const pieces = this.pieces[color];
+
+    for (const pieceId in pieces) {
+      const possibleMoves = this.getPossibleMoves(pieces[pieceId], GetPossibleMovesType.ATTACKED);
+
+      for (let i = 0, l = possibleMoves.length; i < l; i++) {
+        if (possibleMoves[i] === square) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   }
 
   isStalemate(): boolean {
