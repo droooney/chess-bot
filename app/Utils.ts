@@ -14,7 +14,7 @@ export enum PieceType {
   PAWN
 }
 
-export interface MoveInGame {
+export interface Move {
   move: number;
   changedPiece: Piece;
   changedPieceOldSquare: number;

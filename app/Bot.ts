@@ -17,6 +17,7 @@ export default class Bot extends Game {
 
   color: Color;
   opponentColor: Color;
+  moveCount: number = 0;
   evals: number = 0;
   evalTime: number = 0;
   evalBishopPairTime: number = 0;
@@ -629,25 +630,19 @@ export default class Bot extends Game {
           move |= PieceType.QUEEN;
         }
 
-        this.performMove(move);
-
-        if (this.isInCheck(turn)) {
-          this.revertLastMove();
-
-          continue;
-        }
+        const moveObject = this.performMove(move);
 
         const score = this.executeMiniMax(isSame ? depth : depth + 1, !isSame, maxScore);
 
         if (isSame ? score >= currentOptimalScore : score <= currentOptimalScore) {
-          this.revertLastMove();
+          this.revertMove(moveObject);
 
           return isSame ? Infinity : -Infinity;
         }
 
         maxScore = isSame ? Math.max(maxScore, score) : Math.min(maxScore, score);
 
-        this.revertLastMove();
+        this.revertMove(moveObject);
       }
     }
 
@@ -701,11 +696,11 @@ export default class Bot extends Game {
 
     legalMoves
       .map((move) => {
-        this.performMove(move);
+        const moveObject = this.performMove(move);
 
         const score = this.eval(0);
 
-        this.revertLastMove();
+        this.revertMove(moveObject);
 
         return {
           move,
@@ -714,7 +709,7 @@ export default class Bot extends Game {
       })
       .sort(({ score: score1 }, { score: score2 }) => score2 - score1)
       .forEach(({ move }) => {
-        this.performMove(move);
+        const moveObject = this.performMove(move);
 
         const score = this.executeMiniMax(0, false, optimalLines[0].score - Bot.OPTIMAL_MOVE_THRESHOLD);
         const index = optimalLines.findIndex(({ score: optimalScore }) => score > optimalScore);
@@ -724,7 +719,7 @@ export default class Bot extends Game {
           optimalLines.pop();
         }
 
-        this.revertLastMove();
+        this.revertMove(moveObject);
 
         return {
           move,

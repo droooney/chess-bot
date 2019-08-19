@@ -5,7 +5,7 @@ import Utils, {
   CastlingSide,
   Color,
   ColorPieces,
-  MoveInGame,
+  Move,
   Piece,
   PieceType,
   Result
@@ -17,7 +17,7 @@ export enum GetPossibleMovesType {
 }
 
 export default class Game extends Utils {
-  static standardFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+  static standardFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
   generateKey = (): bigint => {
     let n = 0n;
@@ -44,7 +44,6 @@ export default class Game extends Utils {
   pieces: { [color in Color]: ColorPieces; } = [{}, {}];
   pieceCounts: { [color in Color]: number; } = [0, 0];
   material: { [color in Color]: number; } = [0, 0];
-  moves: MoveInGame[] = [];
   position: bigint = 0n;
   positions: Map<bigint, number> = new Map();
   possibleCastling: number = 0;
@@ -102,7 +101,7 @@ export default class Game extends Utils {
       this.board[square] = piece;
       piece.square = square;
 
-      if (!this.isInCheck(this.turn)) {
+      if (!this.isInCheck()) {
         legalMoves.push(square);
       }
 
@@ -181,7 +180,7 @@ export default class Game extends Utils {
             }
           }
 
-          if (this.isSquareAttacked(newRookSquare, Game.oppositeColor[pieceColor])) {
+          if (this.isSquareAttacked(newRookSquare)) {
             continue;
           }
 
@@ -247,10 +246,8 @@ export default class Game extends Utils {
     );
   }
 
-  isInCheck(color: Color): boolean {
-    const opponentColor = Game.oppositeColor[color];
-
-    return this.isSquareAttacked(this.kings[color].square, opponentColor);
+  isInCheck(): boolean {
+    return this.isSquareAttacked(this.kings[this.turn].square);
   }
 
   isInsufficientMaterial(): boolean {
@@ -328,8 +325,8 @@ export default class Game extends Utils {
     return true;
   }
 
-  isSquareAttacked(square: number, color: Color): boolean {
-    const pieces = this.pieces[color];
+  isSquareAttacked(square: number): boolean {
+    const pieces = this.pieces[Game.oppositeColor[this.turn]];
 
     for (const pieceId in pieces) {
       const possibleMoves = this.getPossibleMoves(pieces[pieceId], GetPossibleMovesType.ATTACKED);
@@ -358,7 +355,7 @@ export default class Game extends Utils {
     piece.square = square;
   }
 
-  performMove(move: number) {
+  performMove(move: number): Move {
     const from = move >> 9;
     const to = move >> 3 & 63;
     const promotion: PieceType = move & 7;
@@ -460,7 +457,7 @@ export default class Game extends Utils {
     }
 
     this.turn = opponentColor;
-    this.isCheck = this.isInCheck(this.turn);
+    this.isCheck = this.isInCheck();
     this.positions.set(this.position, this.positions.get(this.position)! + 1 || 1);
 
     if (this.isCheckmate()) {
@@ -469,7 +466,7 @@ export default class Game extends Utils {
       this.result = Result.DRAW;
     }
 
-    this.moves.push({
+    return {
       move,
       changedPiece: piece,
       changedPieceOldSquare: from,
@@ -481,7 +478,7 @@ export default class Game extends Utils {
       prevPossibleEnPassant,
       prevPossibleCastling,
       prevPliesWithoutCaptureOrPawnMove
-    });
+    };
   }
 
   removePiece(piece: Piece, removeFromBoard: boolean) {
@@ -496,65 +493,61 @@ export default class Game extends Utils {
     }
   }
 
-  revertLastMove() {
-    const lastMove = this.moves.pop();
+  revertMove(move: Move) {
+    const prevTurn = Game.oppositeColor[this.turn];
+    const {
+      changedPiece,
+      changedPieceOldSquare,
+      capturedPiece,
+      promotedPawn,
+      castlingRook,
+      wasCheck,
+      prevPosition,
+      prevPossibleEnPassant,
+      prevPossibleCastling,
+      prevPliesWithoutCaptureOrPawnMove
+    } = move;
 
-    if (lastMove) {
-      const prevTurn = Game.oppositeColor[this.turn];
-      const {
-        changedPiece,
-        changedPieceOldSquare,
-        capturedPiece,
-        promotedPawn,
-        castlingRook,
-        wasCheck,
-        prevPosition,
-        prevPossibleEnPassant,
-        prevPossibleCastling,
-        prevPliesWithoutCaptureOrPawnMove
-      } = lastMove;
+    this.board[changedPiece.square] = null;
+    this.board[changedPieceOldSquare] = changedPiece;
+    changedPiece.square = changedPieceOldSquare;
 
-      this.board[changedPiece.square] = null;
-      this.board[changedPieceOldSquare] = changedPiece;
-      changedPiece.square = changedPieceOldSquare;
-
-      if (capturedPiece) {
-        this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
-        this.pieceCounts[capturedPiece.color]++;
-        this.material[capturedPiece.color] += Game.piecesWorth[capturedPiece.type];
-        this.board[capturedPiece.square] = capturedPiece;
-      }
-
-      if (promotedPawn) {
-        this.material[promotedPawn.color] -= Game.piecesWorth[promotedPawn.type] - Game.piecesWorth[PieceType.PAWN];
-        promotedPawn.type = PieceType.PAWN;
-      }
-
-      if (castlingRook) {
-        const oldSquare = Game.rookInitialSquares[castlingRook.square];
-
-        this.board[castlingRook.square] = null;
-        this.board[oldSquare] = castlingRook;
-        castlingRook.square = oldSquare;
-      }
-
-      this.isCheck = wasCheck;
-
-      const positionCount = this.positions.get(this.position)!;
-
-      if (positionCount === 1) {
-        this.positions.delete(this.position);
-      } else {
-        this.positions.set(this.position, positionCount - 1);
-      }
-
-      this.position = prevPosition;
-      this.possibleEnPassant = prevPossibleEnPassant;
-      this.possibleCastling = prevPossibleCastling;
-      this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
-      this.turn = prevTurn;
-      this.result = null;
+    if (capturedPiece) {
+      this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
+      this.pieceCounts[capturedPiece.color]++;
+      this.material[capturedPiece.color] += Game.piecesWorth[capturedPiece.type];
+      this.board[capturedPiece.square] = capturedPiece;
     }
+
+    if (promotedPawn) {
+      this.material[promotedPawn.color] -= Game.piecesWorth[promotedPawn.type] - Game.piecesWorth[PieceType.PAWN];
+      promotedPawn.type = PieceType.PAWN;
+    }
+
+    if (castlingRook) {
+      const oldSquare = Game.rookInitialSquares[castlingRook.square];
+
+      this.board[castlingRook.square] = null;
+      this.board[oldSquare] = castlingRook;
+      castlingRook.square = oldSquare;
+    }
+
+    this.isCheck = wasCheck;
+
+    const positionCount = this.positions.get(this.position)!;
+
+    if (positionCount === 1) {
+      this.positions.delete(this.position);
+    } else {
+      this.positions.set(this.position, positionCount - 1);
+    }
+
+    this.position = prevPosition;
+    this.possibleEnPassant = prevPossibleEnPassant;
+    this.possibleCastling = prevPossibleCastling;
+    this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
+    this.turn = prevTurn;
+    this.result = null;
   }
 
   setStartingData(fen: string) {
@@ -620,7 +613,7 @@ export default class Game extends Utils {
     }
 
     this.pliesWithoutCaptureOrPawnMove = +pliesWithoutCaptureOrPawnMoveString;
-    this.isCheck = this.isInCheck(this.turn);
+    this.isCheck = this.isInCheck();
     this.positions.set(this.position, 1);
   }
 }

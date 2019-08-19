@@ -150,8 +150,10 @@ export default class LichessBot {
 
   handleGameState(gameId: string, bot: Bot, gameState: LichessGameState) {
     if (gameState.moves) {
-      gameState.moves.split(' ').slice(bot.moves.length).forEach((uci) => {
+      gameState.moves.split(' ').slice(bot.moveCount).forEach((uci) => {
         bot.performMove(Utils.uciToMove(uci));
+
+        bot.moveCount++;
       });
     }
 
