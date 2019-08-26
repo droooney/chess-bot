@@ -292,8 +292,8 @@ export default class Game extends Utils {
       }
 
       if (possibleBishopColor === null) {
-        possibleBishopColor = piece.square & 1;
-      } else if ((piece.square & 1) !== possibleBishopColor) {
+        possibleBishopColor = Game.colors[piece.square];
+      } else if (Game.colors[piece.square] !== possibleBishopColor) {
         return false;
       }
     }
@@ -305,7 +305,7 @@ export default class Game extends Utils {
         continue;
       }
 
-      if (piece.type !== PieceType.BISHOP || (piece.square & 1) !== possibleBishopColor) {
+      if (piece.type !== PieceType.BISHOP || Game.colors[piece.square] !== possibleBishopColor) {
         return false;
       }
     }

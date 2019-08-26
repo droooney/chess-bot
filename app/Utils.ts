@@ -328,6 +328,7 @@ export default class Utils {
     UP: [1, -1],
     DOWN: [-1, 1]
   };
+  static colors = Utils.allSquares.map((square) => square >> 3 & 1 ^ square & 1);
 
   static uciToMove(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;
