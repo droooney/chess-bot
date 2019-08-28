@@ -1,6 +1,7 @@
 import * as _ from 'lodash';
 
 import Utils, {
+  Bitboards,
   Board,
   CastlingSide,
   Color,
@@ -44,6 +45,10 @@ export default class Game extends Utils {
   pieces: { [color in Color]: ColorPieces; } = [{}, {}];
   pieceCounts: { [color in Color]: number; } = [0, 0];
   material: { [color in Color]: number; } = [0, 0];
+  bitboards: { [color in Color]: Bitboards; } = [
+    new Bitboards(),
+    new Bitboards()
+  ];
   position: bigint = 0n;
   positions: Map<bigint, number> = new Map();
   possibleCastling: number = 0;
@@ -77,9 +82,36 @@ export default class Game extends Utils {
     this.setStartingData(fen);
   }
 
+  getAttacks(piece: Piece): bigint {
+    if (piece.type === PieceType.BISHOP || piece.type === PieceType.ROOK || piece.type === PieceType.QUEEN) {
+      const blockers = this.bitboards[Color.WHITE].all | this.bitboards[Color.BLACK].all;
+
+      if (piece.type === PieceType.BISHOP || piece.type === PieceType.ROOK) {
+        const { mask, map } = Game.slidingAttackBitboards[piece.type][piece.square];
+
+        return map.get(blockers & mask)!;
+      }
+
+      const { mask: bishopMask, map: bishopMap } = Game.slidingAttackBitboards[PieceType.BISHOP][piece.square];
+      const { mask: rookMask, map: rookMap } = Game.slidingAttackBitboards[PieceType.ROOK][piece.square];
+
+      return bishopMap.get(blockers & bishopMask)! | rookMap.get(blockers & rookMask)!;
+    }
+
+    if (piece.type === PieceType.KNIGHT) {
+      return Game.knightAttackBitboards[piece.square];
+    }
+
+    if (piece.type === PieceType.KING) {
+      return Game.kingAttackBitboards[piece.square];
+    }
+
+    return Game.pawnAttackBitboards[piece.color][piece.square];
+  }
+
   getLegalMoves(piece: Piece): number[] {
     const legalMoves: number[] = [];
-    const possibleMoves = this.getPossibleMoves(piece, GetPossibleMovesType.MOVE);
+    const possibleMoves = this.getPseudoLegalMoves(piece, GetPossibleMovesType.MOVE);
     const isPawn = piece.type === PieceType.PAWN;
     const prevSquare = piece.square;
     const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
@@ -119,7 +151,58 @@ export default class Game extends Utils {
     return legalMoves;
   }
 
-  getPossibleMoves(piece: Piece, type: GetPossibleMovesType): number[] {
+  getLegalMoves2(piece: Piece): bigint {
+    let square = 0;
+    let legalBitboard = 0n;
+    let capturedPiece: 0 | Piece | null = null;
+    const bitboard = this.getPseudoLegalMoves2(piece);
+    const isPawn = piece.type === PieceType.PAWN;
+    const prevSquare = piece.square;
+    const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
+
+    this.bitboards[piece.color].all &= ~Game.squareBitboards[prevSquare];
+    this.bitboards[piece.color][piece.type] &= ~Game.squareBitboards[prevSquare];
+
+    for (; square < 64; square++) {
+      if (bitboard & Game.squareBitboards[square]) {
+        capturedPiece = isPawn && square === this.possibleEnPassant
+          ? enPassantCapturedPawn
+          : this.board[square];
+
+        if (capturedPiece) {
+          this.bitboards[capturedPiece.color].all &= ~Game.squareBitboards[capturedPiece.square];
+          this.bitboards[capturedPiece.color][capturedPiece.type] &= ~Game.squareBitboards[capturedPiece.square];
+
+          delete this.pieces[capturedPiece.color][capturedPiece.id];
+        }
+
+        this.bitboards[piece.color].all |= Game.squareBitboards[square];
+        this.bitboards[piece.color][piece.type] |= Game.squareBitboards[square];
+        piece.square = square;
+
+        if (!this.isInCheck2()) {
+          legalBitboard |= Game.squareBitboards[square];
+        }
+
+        this.bitboards[piece.color].all &= ~Game.squareBitboards[square];
+        this.bitboards[piece.color][piece.type] &= ~Game.squareBitboards[square];
+
+        if (capturedPiece) {
+          this.bitboards[capturedPiece.color].all |= Game.squareBitboards[capturedPiece.square];
+          this.bitboards[capturedPiece.color][capturedPiece.type] |= Game.squareBitboards[capturedPiece.square];
+          this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
+        }
+      }
+    }
+
+    this.bitboards[piece.color].all |= Game.squareBitboards[prevSquare];
+    this.bitboards[piece.color][piece.type] |= Game.squareBitboards[prevSquare];
+    piece.square = prevSquare;
+
+    return legalBitboard;
+  }
+
+  getPseudoLegalMoves(piece: Piece, type: GetPossibleMovesType): number[] {
     const {
       type: pieceType,
       color: pieceColor,
@@ -233,6 +316,83 @@ export default class Game extends Utils {
     return possibleMoves;
   }
 
+  getPseudoLegalMoves2(piece: Piece): bigint {
+    const {
+      type: pieceType,
+      color: pieceColor,
+      square: pieceSquare
+    } = piece;
+    let bitboard = 0n;
+
+    if (pieceType === PieceType.BISHOP || pieceType === PieceType.ROOK || pieceType === PieceType.QUEEN) {
+      const blockers = this.bitboards[Color.WHITE].all | this.bitboards[Color.BLACK].all;
+
+      if (pieceType === PieceType.BISHOP || pieceType === PieceType.ROOK) {
+        const { mask, map } = Game.slidingAttackBitboards[pieceType][pieceSquare];
+
+        bitboard = map.get(blockers & mask)!;
+      } else {
+        const { mask: bishopMask, map: bishopMap } = Game.slidingAttackBitboards[PieceType.BISHOP][pieceSquare];
+        const { mask: rookMask, map: rookMap } = Game.slidingAttackBitboards[PieceType.ROOK][pieceSquare];
+
+        bitboard = bishopMap.get(blockers & bishopMask)! | rookMap.get(blockers & rookMask)!;
+      }
+    } else if (pieceType === PieceType.KNIGHT) {
+      bitboard = Game.knightAttackBitboards[pieceSquare];
+    } else if (pieceType === PieceType.KING) {
+      bitboard = Game.kingAttackBitboards[pieceSquare];
+
+      if (pieceSquare === Game.kingInitialSquares[pieceColor] && !this.isCheck) {
+        const castlings: CastlingSide[] = [];
+
+        if (this.possibleCastling & Game.castling[pieceColor][CastlingSide.KING]) {
+          castlings.push(CastlingSide.KING);
+        }
+
+        if (this.possibleCastling & Game.castling[pieceColor][CastlingSide.QUEEN]) {
+          castlings.push(CastlingSide.QUEEN);
+        }
+
+        if (castlings.length) {
+          const blockers = this.bitboards[Color.WHITE].all | this.bitboards[Color.BLACK].all;
+
+          for (let i = 0, l = castlings.length; i < l; i++) {
+            const {
+              newRookSquare,
+              newKingSquare,
+              middleSquares
+            } = Game.castlingParams2[pieceColor][castlings[i]];
+
+            if (blockers & middleSquares) {
+              continue;
+            }
+
+            if (this.isSquareAttacked2(newRookSquare)) {
+              continue;
+            }
+
+            bitboard |= newKingSquare;
+          }
+        }
+      }
+    } else {
+      const blockers = this.bitboards[Color.WHITE].all | this.bitboards[Color.BLACK].all;
+      const { mask, map } = Game.pawnAdvanceBitboards[pieceColor][pieceSquare];
+
+      bitboard = map.get(blockers & mask)!;
+
+      if (this.possibleEnPassant) {
+        bitboard |= Game.squareBitboards[this.possibleEnPassant];
+      }
+
+      const pawnAttacks = Game.pawnAttackBitboards[pieceColor][pieceSquare];
+
+      bitboard |= pawnAttacks & this.bitboards[Game.oppositeColor[pieceColor]].all;
+    }
+
+    return bitboard & ~this.bitboards[pieceColor].all;
+  }
+
   isCheckmate(): boolean {
     return this.isCheck && this.isNoMoves();
   }
@@ -248,6 +408,10 @@ export default class Game extends Utils {
 
   isInCheck(): boolean {
     return this.isSquareAttacked(this.kings[this.turn].square);
+  }
+
+  isInCheck2(): boolean {
+    return this.isSquareAttacked2(Game.squareBitboards[this.kings[this.turn].square]);
   }
 
   isInsufficientMaterial(): boolean {
@@ -329,12 +493,24 @@ export default class Game extends Utils {
     const pieces = this.pieces[Game.oppositeColor[this.turn]];
 
     for (const pieceId in pieces) {
-      const possibleMoves = this.getPossibleMoves(pieces[pieceId], GetPossibleMovesType.ATTACKED);
+      const pseudoLegalMoves = this.getPseudoLegalMoves(pieces[pieceId], GetPossibleMovesType.ATTACKED);
 
-      for (let i = 0, l = possibleMoves.length; i < l; i++) {
-        if (possibleMoves[i] === square) {
+      for (let i = 0, l = pseudoLegalMoves.length; i < l; i++) {
+        if (pseudoLegalMoves[i] === square) {
           return true;
         }
+      }
+    }
+
+    return false;
+  }
+
+  isSquareAttacked2(squareBitboard: bigint): boolean {
+    const pieces = this.pieces[Game.oppositeColor[this.turn]];
+
+    for (const pieceId in pieces) {
+      if (this.getAttacks(pieces[pieceId]) & squareBitboard) {
+        return true;
       }
     }
 
@@ -345,11 +521,18 @@ export default class Game extends Utils {
     return !this.isCheck && this.isNoMoves();
   }
 
-  movePiece(piece: Piece, square: number) {
-    this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
-    this.position ^= this.pieceKeys[piece.color][piece.type][square];
+  movePiece(piece: Piece, square: number, changePosition: boolean) {
+    if (changePosition) {
+      this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
+      this.position ^= this.pieceKeys[piece.color][piece.type][square];
+    }
 
+    this.bitboards[piece.color].all &= ~Game.squareBitboards[piece.square];
+    this.bitboards[piece.color][piece.type] &= ~Game.squareBitboards[piece.square];
     this.board[piece.square] = null;
+
+    this.bitboards[piece.color].all |= Game.squareBitboards[square];
+    this.bitboards[piece.color][piece.type] |= Game.squareBitboards[square];
     this.board[square] = piece;
 
     piece.square = square;
@@ -376,7 +559,7 @@ export default class Game extends Utils {
       : this.board[to];
     let castlingRook: Piece | null = null;
 
-    this.movePiece(piece, to);
+    this.movePiece(piece, to, true);
 
     if (pieceType === PieceType.KING) {
       this.possibleCastling &= (
@@ -400,7 +583,7 @@ export default class Game extends Utils {
       } = Game.castlingParams[pieceColor][Game.kingCastlingSides[to]];
       const rook = this.board[rookSquare]!;
 
-      this.movePiece(rook, newRookSquare);
+      this.movePiece(rook, newRookSquare, true);
 
       castlingRook = rook;
     }
@@ -422,6 +605,8 @@ export default class Game extends Utils {
     if (promotion) {
       piece.type = promotion;
       this.material[pieceColor] += Game.piecesWorth[promotion] - Game.piecesWorth[PieceType.PAWN];
+      this.bitboards[pieceColor][PieceType.PAWN] &= ~Game.squareBitboards[to];
+      this.bitboards[pieceColor][promotion] |= Game.squareBitboards[to];
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
@@ -468,10 +653,7 @@ export default class Game extends Utils {
 
     return {
       move,
-      changedPiece: piece,
-      changedPieceOldSquare: from,
       capturedPiece,
-      promotedPawn: promotion ? piece : null,
       castlingRook,
       wasCheck,
       prevPosition,
@@ -481,11 +663,26 @@ export default class Game extends Utils {
     };
   }
 
+  putPiece(piece: Piece, square: number, changePosition: boolean) {
+    this.pieces[piece.color][piece.id] = piece;
+    this.pieceCounts[piece.color]++;
+    this.board[piece.square] = piece;
+    this.material[piece.color] += Game.piecesWorth[piece.type];
+    this.bitboards[piece.color].all |= Game.squareBitboards[square];
+    this.bitboards[piece.color][piece.type] |= Game.squareBitboards[square];
+
+    if (changePosition) {
+      this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
+    }
+  }
+
   removePiece(piece: Piece, removeFromBoard: boolean) {
     delete this.pieces[piece.color][piece.id];
 
     this.pieceCounts[piece.color]--;
     this.material[piece.color] -= Game.piecesWorth[piece.type];
+    this.bitboards[piece.color].all &= ~Game.squareBitboards[piece.square];
+    this.bitboards[piece.color][piece.type] &= ~Game.squareBitboards[piece.square];
 
     if (removeFromBoard) {
       this.board[piece.square] = null;
@@ -496,10 +693,8 @@ export default class Game extends Utils {
   revertMove(move: Move) {
     const prevTurn = Game.oppositeColor[this.turn];
     const {
-      changedPiece,
-      changedPieceOldSquare,
+      move: moveNumber,
       capturedPiece,
-      promotedPawn,
       castlingRook,
       wasCheck,
       prevPosition,
@@ -507,29 +702,26 @@ export default class Game extends Utils {
       prevPossibleCastling,
       prevPliesWithoutCaptureOrPawnMove
     } = move;
+    const from = moveNumber >> 9;
+    const to = moveNumber >> 3 & 63;
+    const promotion: PieceType = moveNumber & 7;
+    const piece = this.board[to]!;
 
-    this.board[changedPiece.square] = null;
-    this.board[changedPieceOldSquare] = changedPiece;
-    changedPiece.square = changedPieceOldSquare;
+    this.movePiece(piece, from, false);
 
     if (capturedPiece) {
-      this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
-      this.pieceCounts[capturedPiece.color]++;
-      this.material[capturedPiece.color] += Game.piecesWorth[capturedPiece.type];
-      this.board[capturedPiece.square] = capturedPiece;
+      this.putPiece(capturedPiece, capturedPiece.square, false);
     }
 
-    if (promotedPawn) {
-      this.material[promotedPawn.color] -= Game.piecesWorth[promotedPawn.type] - Game.piecesWorth[PieceType.PAWN];
-      promotedPawn.type = PieceType.PAWN;
+    if (promotion) {
+      this.material[piece.color] -= Game.piecesWorth[piece.type] - Game.piecesWorth[PieceType.PAWN];
+      this.bitboards[piece.color][piece.type] &= ~Game.squareBitboards[to];
+      this.bitboards[piece.color][PieceType.PAWN] |= Game.squareBitboards[to];
+      piece.type = PieceType.PAWN;
     }
 
     if (castlingRook) {
-      const oldSquare = Game.rookInitialSquares[castlingRook.square];
-
-      this.board[castlingRook.square] = null;
-      this.board[oldSquare] = castlingRook;
-      castlingRook.square = oldSquare;
+      this.movePiece(castlingRook, Game.rookInitialSquares[castlingRook.square], false);
     }
 
     this.isCheck = wasCheck;
@@ -553,40 +745,36 @@ export default class Game extends Utils {
   setStartingData(fen: string) {
     let id = 0;
     const [piecesString, turnString, castlingString, enPassantString, pliesWithoutCaptureOrPawnMoveString] = fen.split(' ');
-    const addPiece = (color: Color, pieceType: PieceType, x: number, y: number) => {
-      const piece = {
+    const addPiece = (color: Color, type: PieceType, file: number, rank: number) => {
+      const square = Game.squares[rank][file];
+      const piece: Piece = {
         id: id++,
         color,
-        type: pieceType,
-        square: Game.squares[y][x]
+        type,
+        square
       };
 
-      this.pieces[color][piece.id] = piece;
-      this.board[piece.square] = piece;
-      this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
-      this.pieceCounts[color]++;
+      this.putPiece(piece, square, true);
 
-      if (pieceType === PieceType.KING) {
+      if (type === PieceType.KING) {
         this.kings[color] = piece;
-      } else {
-        this.material[color] += Game.piecesWorth[pieceType];
       }
     };
 
-    piecesString.split('/').reverse().forEach((row, y) => {
-      let x = 0;
+    piecesString.split('/').reverse().forEach((row, rank) => {
+      let file = 0;
 
       row.split('').forEach((p) => {
         if (/\d/.test(p)) {
-          x += +p;
+          file += +p;
         } else {
           if (Game.pieceLiterals[Color.WHITE].includes(p)) {
-            addPiece(Color.WHITE, Game.pieceLiterals[Color.WHITE].indexOf(p), x, y);
+            addPiece(Color.WHITE, Game.pieceLiterals[Color.WHITE].indexOf(p), file, rank);
           } else {
-            addPiece(Color.BLACK, Game.pieceLiterals[Color.BLACK].indexOf(p), x, y);
+            addPiece(Color.BLACK, Game.pieceLiterals[Color.BLACK].indexOf(p), file, rank);
           }
 
-          x++;
+          file++;
         }
       });
     });

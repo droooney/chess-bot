@@ -16,10 +16,7 @@ export enum PieceType {
 
 export interface Move {
   move: number;
-  changedPiece: Piece;
-  changedPieceOldSquare: number;
   capturedPiece: Piece | null;
-  promotedPawn: Piece | null;
   castlingRook: Piece | null;
   wasCheck: boolean;
   prevPosition: bigint;
@@ -49,6 +46,13 @@ export interface CastlingParams {
   middleSquares: number[];
 }
 
+export interface CastlingParams2 {
+  rookSquare: number;
+  newKingSquare: bigint;
+  newRookSquare: bigint;
+  middleSquares: bigint;
+}
+
 export enum Castling {
   WHITE_KING_SIDE = 1,
   WHITE_QUEEN_SIDE = 2,
@@ -63,6 +67,26 @@ export enum Result {
 }
 
 export type Board = { [square in number]: Piece | null; };
+
+export interface Attacks {
+  mask: bigint;
+  map: Map<bigint, bigint>;
+}
+
+export class Bitboards extends Array<bigint> {
+  all: bigint = 0n;
+
+  constructor() {
+    super();
+
+    this[PieceType.PAWN] = 0n;
+    this[PieceType.KNIGHT] = 0n;
+    this[PieceType.BISHOP] = 0n;
+    this[PieceType.ROOK] = 0n;
+    this[PieceType.QUEEN] = 0n;
+    this[PieceType.KING] = 0n;
+  }
+}
 
 export default class Utils {
   static oppositeColor: { [color in Color]: Color; } = [Color.BLACK, Color.WHITE];
@@ -80,6 +104,7 @@ export default class Utils {
     new Array(8).fill(0).map((_v, x) => y << 3 | x)
   ));
   static allSquares: number[] = new Array(64).fill(0).map((_v, i) => i);
+  static squareBitboards: { [square in number]: bigint; } = Utils.allSquares.map((square) => 1n << BigInt(square));
   static diagonalMoves: { [square in number]: number[][]; } = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, +1, +1, false),
     Utils.traverseDirection(square, +1, -1, false),
@@ -291,6 +316,50 @@ export default class Utils {
       }
     ]
   ];
+  static castlingParams2: { [color in Color]: { [castlingSide in CastlingSide]: CastlingParams2; }; } = [
+    [
+      {
+        rookSquare: Utils.squares[0][7],
+        newKingSquare: Utils.squareBitboards[Utils.squares[0][6]],
+        newRookSquare: Utils.squareBitboards[Utils.squares[0][5]],
+        middleSquares: Utils.squaresToBitboard([
+          Utils.squares[0][5],
+          Utils.squares[0][6]
+        ])
+      },
+      {
+        rookSquare: Utils.squares[0][0],
+        newKingSquare: Utils.squareBitboards[Utils.squares[0][2]],
+        newRookSquare: Utils.squareBitboards[Utils.squares[0][3]],
+        middleSquares: Utils.squaresToBitboard([
+          Utils.squares[0][1],
+          Utils.squares[0][2],
+          Utils.squares[0][3]
+        ])
+      }
+    ],
+    [
+      {
+        rookSquare: Utils.squares[7][7],
+        newKingSquare: Utils.squareBitboards[Utils.squares[7][6]],
+        newRookSquare: Utils.squareBitboards[Utils.squares[7][5]],
+        middleSquares: Utils.squaresToBitboard([
+          Utils.squares[7][5],
+          Utils.squares[7][6]
+        ])
+      },
+      {
+        rookSquare: Utils.squares[7][0],
+        newKingSquare: Utils.squareBitboards[Utils.squares[7][2]],
+        newRookSquare: Utils.squareBitboards[Utils.squares[7][3]],
+        middleSquares: Utils.squaresToBitboard([
+          Utils.squares[7][1],
+          Utils.squares[7][2],
+          Utils.squares[7][3]
+        ])
+      }
+    ]
+  ];
   static kingInitialSquares: { [color in Color]: number; } = [Utils.squares[0][4], Utils.squares[7][4]];
   static rookInitialSquares: { [square in number]: number; } = {
     [Utils.squares[0][3]]: Utils.squares[0][0],
@@ -329,6 +398,66 @@ export default class Utils {
     DOWN: [-1, 1]
   };
   static colors = Utils.allSquares.map((square) => square >> 3 & 1 ^ square & 1);
+  static bitboardSquares: Map<bigint, number> = new Map(
+    Object.entries(Utils.squareBitboards).map(([square, bitboard]) => [bitboard, +square])
+  );
+  static rankBitboards: { [rank in number]: { [color in Color]: bigint; }; } = _.times(8, (rank) => [
+    Utils.getRankBitboard(rank),
+    Utils.getRankBitboard(7 - rank)
+  ]);
+  static rankBitboards2 = _.mapValues(Utils.ranks, (ranks) => (
+    ranks.map((rank) => Utils.squaresToBitboard(_.times(8, (file) => rank << 3 | file)))
+  ));
+  static fileBitboards: { [file in number]: bigint; } = _.times(8, Utils.getFileBitboard);
+  static fileBitboards2 = _.mapValues(Utils.files, (file) => (
+    Utils.squaresToBitboard(_.times(8, (rank) => rank << 3 | file))
+  ));
+  static slidingAttackBitboards: { [PieceType.BISHOP]: Attacks[]; [PieceType.ROOK]: Attacks[]; } = {
+    [PieceType.BISHOP]: Utils.allSquares.map((square) => Utils.generateSlidingAttackBitboards(square, true)),
+    [PieceType.ROOK]: Utils.allSquares.map((square) => Utils.generateSlidingAttackBitboards(square, false))
+  };
+  static kingAttackBitboards: { [square in number]: bigint; } = Utils.allSquares.map((square) => (
+    Utils.traverseDirection2(square, +1, +1, 0n, false, true)
+    | Utils.traverseDirection2(square, +1, -1, 0n, false, true)
+    | Utils.traverseDirection2(square, -1, +1, 0n, false, true)
+    | Utils.traverseDirection2(square, -1, -1, 0n, false, true)
+    | Utils.traverseDirection2(square, 0, +1, 0n, false, true)
+    | Utils.traverseDirection2(square, 0, -1, 0n, false, true)
+    | Utils.traverseDirection2(square, +1, 0, 0n, false, true)
+    | Utils.traverseDirection2(square, -1, 0, 0n, false, true)
+  ));
+  static knightAttackBitboards: { [square in number]: bigint; } = Utils.allSquares.map((square) => (
+    Utils.traverseDirection2(square, +2, +1, 0n, false, true)
+    | Utils.traverseDirection2(square, +2, -1, 0n, false, true)
+    | Utils.traverseDirection2(square, -2, +1, 0n, false, true)
+    | Utils.traverseDirection2(square, -2, -1, 0n, false, true)
+    | Utils.traverseDirection2(square, +1, +2, 0n, false, true)
+    | Utils.traverseDirection2(square, +1, -2, 0n, false, true)
+    | Utils.traverseDirection2(square, -1, +2, 0n, false, true)
+    | Utils.traverseDirection2(square, -1, -2, 0n, false, true)
+  ));
+  static pawnAttackBitboards: { [color in Color]: { [square in number]: bigint; }; } = [
+    Utils.allSquares.map((square) => {
+      const x = square & 7;
+      const y = square >> 3;
+
+      return y === 0 || y === 7
+        ? 0n
+        : Utils.squaresToBitboard([Utils.squares[y + 1][x + 1], Utils.squares[y + 1][x - 1]].filter((square) => square !== undefined));
+    }),
+    Utils.allSquares.map((square) => {
+      const x = square & 7;
+      const y = square >> 3;
+
+      return y === 0 || y === 7
+        ? 0n
+        : Utils.squaresToBitboard([Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter((square) => square !== undefined));
+    })
+  ];
+  static pawnAdvanceBitboards: { [color in Color]: Attacks[]; } = [
+    Utils.generateAllPawnAdvanceBitboards(Color.WHITE),
+    Utils.generateAllPawnAdvanceBitboards(Color.BLACK)
+  ];
 
   static uciToMove(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;
@@ -380,5 +509,160 @@ export default class Utils {
     }
 
     return [nextSquare, ...Utils.traverseDirection(nextSquare, incrementX, incrementY, false)];
+  }
+
+  static getSlidingPieceMask(square: number, isBishop: boolean, blockers: bigint, pop: boolean): bigint {
+    if (isBishop) {
+      return (
+        Utils.traverseDirection2(square, -1, -1, blockers, pop, false)
+        | Utils.traverseDirection2(square, -1, +1, blockers, pop, false)
+        | Utils.traverseDirection2(square, +1, -1, blockers, pop, false)
+        | Utils.traverseDirection2(square, +1, +1, blockers, pop, false)
+      );
+    }
+
+    return (
+      Utils.traverseDirection2(square, -1, 0, blockers, pop, false)
+      | Utils.traverseDirection2(square, +1, 0, blockers, pop, false)
+      | Utils.traverseDirection2(square, 0, -1, blockers, pop, false)
+      | Utils.traverseDirection2(square, 0, +1, blockers, pop, false)
+    );
+  }
+
+  static traverseDirection2(square: number, incrementX: number, incrementY: number, blockers: bigint, pop: boolean, stopAfter1: boolean): bigint {
+    const squares: number[] = [];
+    const traverse = (x: number, y: number) => {
+      const nextX = x + incrementX;
+      const nextY = y + incrementY;
+
+      if (nextX < 0 || nextX > 7 || nextY < 0 || nextY > 7) {
+        return;
+      }
+
+      squares.push(nextY << 3 | nextX);
+
+      if (!(blockers & 1n << BigInt(nextY << 3 | nextX)) && !stopAfter1) {
+        traverse(nextX, nextY);
+      }
+    };
+
+    traverse(square & 7, square >> 3);
+
+    if (pop) {
+      squares.pop();
+    }
+
+    return Utils.squaresToBitboard(squares);
+  }
+
+  static generateSlidingAttackBitboards(square: number, isBishop: boolean): Attacks {
+    const map = new Map<bigint, bigint>();
+    const mask = Utils.getSlidingPieceMask(square, isBishop, 0n, true);
+    const maskString = [...mask.toString(2)].reverse().join('');
+    const length = BigInt(maskString.length);
+    let blockers = 0n;
+    const traverse = (index: bigint) => {
+      if (index === length) {
+        map.set(blockers, Utils.getSlidingPieceMask(square, isBishop, blockers, false));
+      } else {
+        traverse(index + 1n);
+
+        if (maskString[index as any] === '1') {
+          blockers += 1n << index;
+
+          traverse(index + 1n);
+
+          blockers -= 1n << index;
+        }
+      }
+    };
+
+    traverse(0n);
+
+    return { mask, map };
+  }
+
+  static generateAllPawnAdvanceBitboards(color: Color): Attacks[] {
+    return Utils.allSquares.map((square) => {
+      let mask = 0n;
+      const map = new Map<bigint, bigint>();
+      const rank = square >> 3;
+      const file = square & 7;
+      const upperSquare = rank + Utils.directions.UP[color] << 3 | file;
+      const doubleUpperSquare = rank + 2 * Utils.directions.UP[color] << 3 | file;
+
+      if (rank === 0 || rank === 7) {
+        map.set(0n, 0n);
+      } else if (rank === Utils.ranks.RANK_2[color]) {
+        mask = Utils.squareBitboards[upperSquare] | Utils.squareBitboards[doubleUpperSquare];
+
+        map.set(0n, Utils.squareBitboards[upperSquare] | Utils.squareBitboards[doubleUpperSquare]);
+        map.set(Utils.squareBitboards[upperSquare], 0n);
+        map.set(Utils.squareBitboards[doubleUpperSquare], Utils.squareBitboards[upperSquare]);
+        map.set(Utils.squareBitboards[upperSquare] | Utils.squareBitboards[doubleUpperSquare], 0n);
+      } else {
+        mask = Utils.squareBitboards[upperSquare];
+
+        map.set(0n, Utils.squareBitboards[upperSquare]);
+        map.set(Utils.squareBitboards[upperSquare], 0n);
+      }
+
+      return { mask, map };
+    });
+  }
+
+  static printBitboard(bitboard: bigint): string {
+    const bits: string[][] = [];
+
+    for (let i = 0n; i < 8n; i++) {
+      bits.push([]);
+
+      for (let j = 0n; j < 8n; j++) {
+        bits[i as any][j as any] = bitboard & 1n << i * 8n + j ? '1' : '.';
+      }
+    }
+
+    return bits.reverse().map((row) => row.join('  ')).join('\n') + '\n';
+  }
+
+  static squaresToBitboard(squares: number[]): bigint {
+    let bitboard = 0n;
+
+    squares.forEach((square) => {
+      bitboard |= Utils.squareBitboards[square];
+    });
+
+    return bitboard;
+  }
+
+  static bitboardToSquares(bitboard: bigint): number[] {
+    const squares: number[] = [];
+    let square = 0;
+
+    for (; square < 64; square++) {
+      if (bitboard & Utils.squareBitboards[square]) {
+        squares.push(square);
+      }
+    }
+
+    return squares;
+  }
+
+  static getBitsCount(bitboard: bigint): number {
+    let count = 0;
+
+    for (; bitboard; bitboard &= bitboard - 1n) {
+      count++;
+    }
+
+    return count;
+  }
+
+  static getRankBitboard(rank: number): bigint {
+    return Utils.squaresToBitboard(_.times(8, (file) => rank << 3 | file));
+  }
+
+  static getFileBitboard(file: number): bigint {
+    return Utils.squaresToBitboard(_.times(8, (rank) => rank << 3 | file));
   }
 }
