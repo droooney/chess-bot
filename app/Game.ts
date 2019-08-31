@@ -69,6 +69,7 @@ export default class Game extends Utils {
     (square) => !this.board[square] || this.board[square]!.color !== Color.WHITE,
     (square) => !this.board[square] || this.board[square]!.color !== Color.BLACK
   ];
+  moves: number[] = [];
 
   constructor(fen: string) {
     super();
@@ -258,15 +259,6 @@ export default class Game extends Utils {
     return moves;
   }
 
-  isDraw(): boolean {
-    return (
-      this.pliesWithoutCaptureOrPawnMove >= 100
-      || this.positions.get(this.position)! >= 3
-      // || this.isStalemate()
-      || this.isInsufficientMaterial()
-    );
-  }
-
   isInCheck(): boolean {
     return this.isSquareAttacked(this.kings[this.turn].square);
   }
@@ -363,6 +355,8 @@ export default class Game extends Utils {
   }
 
   performMove(move: number): Move {
+    // this.moves.push(move);
+
     const from = move >> 9;
     const to = move >> 3 & 63;
     const promotion: PieceType = move & 7;
@@ -487,7 +481,11 @@ export default class Game extends Utils {
     this.isCheck = this.isInCheck();
     this.positions.set(this.position, this.positions.get(this.position)! + 1 || 1);
 
-    if (this.isDraw()) {
+    if (
+      this.pliesWithoutCaptureOrPawnMove >= 100
+      || this.positions.get(this.position)! >= 3
+      || this.isInsufficientMaterial()
+    ) {
       this.result = Result.DRAW;
     }
 
@@ -507,6 +505,8 @@ export default class Game extends Utils {
   }
 
   revertMove(move: Move) {
+    // this.moves.pop();
+
     const prevTurn = Game.oppositeColor[this.turn];
     const {
       changedPiece,

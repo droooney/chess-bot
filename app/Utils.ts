@@ -80,6 +80,8 @@ export default class Utils {
     new Array(8).fill(0).map((_v, x) => y << 3 | x)
   ));
   static allSquares: number[] = new Array(64).fill(0).map((_v, i) => i);
+  static squareRanks: { [square in number]: number } = Utils.allSquares.map((square) => square >> 3);
+  static squareFiles: { [square in number]: number } = Utils.allSquares.map((square) => square & 7);
   static diagonalMoves: { [square in number]: number[][]; } = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, +1, +1, false),
     Utils.traverseDirection(square, +1, -1, false),
