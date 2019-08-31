@@ -19,6 +19,7 @@
   },
   "homepage": "https://github.com/droooney/chess-bot#readme",
   "devDependencies": {
+    "@types/colors": "^1.2.1",
     "@types/lodash": "^4.14.136",
     "@types/node": "^12.6.9",
     "@types/qs": "^6.5.3",
@@ -26,6 +27,7 @@
     "typescript": "^3.5.3"
   },
   "dependencies": {
+    "colors": "^1.3.3",
     "lodash": "^4.17.15",
     "qs": "^6.8.0"
   }

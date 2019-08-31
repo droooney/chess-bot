@@ -85,46 +85,41 @@ export default class Utils {
     Utils.traverseDirection(square, +1, -1, false),
     Utils.traverseDirection(square, -1, +1, false),
     Utils.traverseDirection(square, -1, -1, false)
-  ]);
+  ].filter((moves) => moves.length));
   static orthogonalMoves: { [square in number]: number[][]; } = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, 0, +1, false),
     Utils.traverseDirection(square, 0, -1, false),
     Utils.traverseDirection(square, +1, 0, false),
     Utils.traverseDirection(square, -1, 0, false)
-  ]);
-  static pieceMoves: { [type in Exclude<PieceType, PieceType.PAWN>]: { [square in number]: number[][]; }; } = [
-    // king
-    Utils.allSquares.map((square) => [
-      Utils.traverseDirection(square, +1, +1, true),
-      Utils.traverseDirection(square, +1, -1, true),
-      Utils.traverseDirection(square, -1, +1, true),
-      Utils.traverseDirection(square, -1, -1, true),
-      Utils.traverseDirection(square, 0, +1, true),
-      Utils.traverseDirection(square, 0, -1, true),
-      Utils.traverseDirection(square, +1, 0, true),
-      Utils.traverseDirection(square, -1, 0, true)
-    ]),
-    // queen
-    Utils.allSquares.map((square) => [
+  ].filter((moves) => moves.length));
+  static kingMoves: { [square in number]: number[]; } = Utils.allSquares.map((square) => [
+    Utils.traverseDirection(square, +1, +1, true),
+    Utils.traverseDirection(square, +1, -1, true),
+    Utils.traverseDirection(square, -1, +1, true),
+    Utils.traverseDirection(square, -1, -1, true),
+    Utils.traverseDirection(square, 0, +1, true),
+    Utils.traverseDirection(square, 0, -1, true),
+    Utils.traverseDirection(square, +1, 0, true),
+    Utils.traverseDirection(square, -1, 0, true)
+  ].flat());
+  static slidingAttacks: { [type in PieceType.BISHOP | PieceType.ROOK | PieceType.QUEEN]: { [square in number]: number[][]; }; } = {
+    [PieceType.QUEEN]: Utils.allSquares.map((square) => [
       ...Utils.diagonalMoves[square],
       ...Utils.orthogonalMoves[square]
     ]),
-    // rook
-    Utils.allSquares.map((square) => Utils.orthogonalMoves[square]),
-    // bishop
-    Utils.allSquares.map((square) => Utils.diagonalMoves[square]),
-    // knight
-    Utils.allSquares.map((square) => [
-      Utils.traverseDirection(square, +2, +1, true),
-      Utils.traverseDirection(square, +2, -1, true),
-      Utils.traverseDirection(square, -2, +1, true),
-      Utils.traverseDirection(square, -2, -1, true),
-      Utils.traverseDirection(square, +1, +2, true),
-      Utils.traverseDirection(square, +1, -2, true),
-      Utils.traverseDirection(square, -1, +2, true),
-      Utils.traverseDirection(square, -1, -2, true)
-    ])
-  ];
+    [PieceType.ROOK]: Utils.allSquares.map((square) => Utils.orthogonalMoves[square]),
+    [PieceType.BISHOP]: Utils.allSquares.map((square) => Utils.diagonalMoves[square])
+  };
+  static knightMoves: { [square in number]: number[]; } = Utils.allSquares.map((square) => [
+    Utils.traverseDirection(square, +2, +1, true),
+    Utils.traverseDirection(square, +2, -1, true),
+    Utils.traverseDirection(square, -2, +1, true),
+    Utils.traverseDirection(square, -2, -1, true),
+    Utils.traverseDirection(square, +1, +2, true),
+    Utils.traverseDirection(square, +1, -2, true),
+    Utils.traverseDirection(square, -1, +2, true),
+    Utils.traverseDirection(square, -1, -2, true)
+  ].flat());
   static pawnAdvanceMoves: { [color in Color]: { [square in number]: number[]; }; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;

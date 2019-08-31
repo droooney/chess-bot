@@ -105,7 +105,7 @@ export default class LichessBot {
 
   handleChallenge(challenge: LichessChallenge) {
     console.log(challenge);
-    console.log(`got challenge from ${challenge.challenger.name}: ${
+    console.log(`got challenge from ${challenge.challenger.name.green.bold}: ${
       challenge.variant.name} ${challenge.speed} ${challenge.rated ? 'rated' : 'unrated'} game`);
 
     if (
@@ -122,7 +122,7 @@ export default class LichessBot {
   }
 
   async handleGameStart(gameId: string) {
-    console.log(`game ${gameId} started. prev number of games: ${Object.keys(this.bots).length}`);
+    console.log(`game ${gameId.blue.bold} started. prev number of games: ${Object.keys(this.bots).length}`);
 
     const stream = this.createStream<LichessGameEvent>(`/api/bot/game/stream/${gameId}`);
 
@@ -145,7 +145,7 @@ export default class LichessBot {
 
     delete this.bots[gameId];
 
-    console.log(`game ${gameId} ended. number of games: ${Object.keys(this.bots).length}`);
+    console.log(`game ${gameId.blue.bold} ended. number of games: ${Object.keys(this.bots).length}`);
   }
 
   handleGameState(gameId: string, bot: Bot, gameState: LichessGameState) {
@@ -169,7 +169,7 @@ export default class LichessBot {
   }
 
   async monitorCommandLine() {
-    console.log('Listening to command line commands...');
+    console.log('Listening to command line commands...'.magenta.bold);
 
     for await (const data of process.stdin) {
       if (data instanceof Buffer) {
@@ -210,7 +210,7 @@ export default class LichessBot {
   }
 
   async monitorLobbyEvents() {
-    console.log('Listening to lobby events...');
+    console.log('Listening to lobby events...'.magenta.bold);
 
     const stream = this.createStream<LichessLobbyEvent>('/api/stream/event');
 

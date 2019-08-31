@@ -1,7 +1,14 @@
-import Game, { GetPossibleMovesType } from './Game';
+import 'colors';
+
+import Game from './Game';
 import { Color, ColorPieces, Piece, PieceType, Result } from './Utils';
 
 type PawnFiles = { [file in number]: number; };
+
+interface PiecesAttacks {
+  squareAttacks: { [color in Color]: { [square in number]: PieceType[]; }; };
+  attacks: { [pieceId in number]: number[]; }
+}
 
 export default class Bot extends Game {
   static SEARCH_DEPTH = 1;
@@ -9,27 +16,30 @@ export default class Bot extends Game {
   static OPTIMAL_MOVE_THRESHOLD = 50;
   static MATE_SCORE = 1e7;
 
-  static getScore(score: number): number | string {
+  static getScore(score: number): string {
     return Math.abs(score) > 1e6
       ? `#${score < 0 ? '-' : ''}${Bot.MATE_SCORE - Math.abs(score) + 1}`
-      : score / 1000
+      : `${score / 1000}`
   }
 
   color: Color;
   opponentColor: Color;
   moveCount: number = 0;
+  visitedPositions: Map<bigint, number | null> = new Map();
   evals: number = 0;
-  evalTime: number = 0;
-  evalBishopPairTime: number = 0;
-  evalControlTime: number = 0;
-  evalDevelopmentTime: number = 0;
-  evalDoubledPawnsTime: number = 0;
-  evalHangingPiecesTime: number = 0;
-  evalKingSafetyTime: number = 0;
-  evalMaterialTime: number = 0;
-  evalPassedPawnsTime: number = 0;
-  evalPawnIslandsTime: number = 0;
-  evalRooksActivityTime: number = 0;
+  evalTime: bigint = 0n;
+  evalBishopPairTime: bigint = 0n;
+  evalControlTime: bigint = 0n;
+  evalDevelopmentTime: bigint = 0n;
+  evalDoubledPawnsTime: bigint = 0n;
+  evalHangingPiecesTime: bigint = 0n;
+  evalKingSafetyTime: bigint = 0n;
+  evalMaterialTime: bigint = 0n;
+  evalPassedPawnsTime: bigint = 0n;
+  evalPawnIslandsTime: bigint = 0n;
+  evalRooksActivityTime: bigint = 0n;
+  calculateAttacksTime: bigint = 0n;
+  calculateRestTime: bigint = 0n;
 
   constructor(fen: string, color: Color) {
     super(fen);
@@ -38,28 +48,74 @@ export default class Bot extends Game {
     this.opponentColor = Bot.oppositeColor[color];
   }
 
-  eval(depth: number): number {
-    if (this.result !== null) {
-      return this.getFinishedGameScore(depth);
+  calculateAttacks(): PiecesAttacks {
+    const piecesAttacks: PiecesAttacks = {
+      squareAttacks: [{}, {}],
+      attacks: {}
+    };
+
+    for (let color = Color.WHITE; color <= Color.BLACK; color++) {
+      for (const pieceId in this.pieces[color]) {
+        const piece = this.pieces[color][pieceId];
+        const attacks = piecesAttacks.attacks[pieceId] = this.getAttacks(piece);
+
+        for (let i = 0, l = attacks.length; i < l; i++) {
+          const square = attacks[i];
+
+          if (this.board[square]) {
+            (piecesAttacks.squareAttacks[color][square] = piecesAttacks.squareAttacks[color][square] || []).push(piece.type);
+          }
+        }
+      }
     }
 
-    const timestamp = Date.now();
-    const result = this.evalColor(this.color) - this.evalColor(this.opponentColor);
+    return piecesAttacks;
+  }
+
+  eval(depth: number): number {
+    const timestamp = process.hrtime.bigint();
+
+    if (this.isCheck && this.isNoMoves()) {
+      this.evals++;
+      this.evalTime += process.hrtime.bigint() - timestamp;
+
+      return this.getFinishedGameScore(Bot.oppositeColor[this.turn] as 0 | 1, depth);
+    }
+
+    if (!this.isCheck && this.isNoMoves()) {
+      this.evals++;
+      this.evalTime += process.hrtime.bigint() - timestamp;
+
+      return this.getFinishedGameScore(Result.DRAW, depth);
+    }
+
+    if (this.result !== null) {
+      this.evals++;
+      this.evalTime += process.hrtime.bigint() - timestamp;
+
+      return this.getFinishedGameScore(this.result, depth);
+    }
+
+    const piecesAttacks = this.calculateAttacks();
+
+    this.calculateAttacksTime += process.hrtime.bigint() - timestamp;
+
+    const result = this.evalColor(this.color, piecesAttacks) - this.evalColor(this.opponentColor, piecesAttacks);
 
     this.evals++;
-    this.evalTime += Date.now() - timestamp;
+    this.evalTime += process.hrtime.bigint() - timestamp;
 
     // console.log(this.moves.map(({ move }) => Game.getUciFromMove(move)).join(' '), result);
 
     return result;
   }
 
-  evalColor(color: Color): number {
+  evalColor(color: Color, piecesAttacks: PiecesAttacks): number {
+    const timestamp = process.hrtime.bigint();
     const opponentColor = Bot.oppositeColor[color];
     const isEndgame = this.isEndgame();
 
     const pieces = this.pieces[color];
-    const opponentPieces = this.pieces[opponentColor];
     const pawns = this.getPawns(color);
     const king = this.kings[color];
     const opponentKing = this.kings[opponentColor];
@@ -71,14 +127,16 @@ export default class Bot extends Game {
       pawnFiles[file] = pawnFiles[file] + 1 || 1;
     }
 
+    this.calculateRestTime += process.hrtime.bigint() - timestamp;
+
     /*
     if (this.moves.map(({ move }) => Game.getUciFromMove(move)).join(' ') === 'g2h3 d5e4') {
       console.log(color, (
         this.evalBishopPair(pieces)
-        + this.evalControl(color, opponentKing, pieces, isEndgame)
+        + this.evalControl(color, opponentKing, pieces, piecesAttacks.attacks, isEndgame)
         + this.evalDevelopment(color, pieces)
         + this.evalDoubledPawns(pawnFiles)
-        + this.evalHangingPieces(color, pieces, opponentPieces)
+        + this.evalHangingPieces(color, opponentColor, pieces, piecesAttacks.squareAttacks)
         + this.evalKingSafety(color, king, isEndgame)
         + this.evalMaterial(pieces)
         + this.evalPassedPawns(color, opponentColor, pawns, isEndgame)
@@ -86,10 +144,10 @@ export default class Bot extends Game {
         + this.evalRooksActivity(pieces, pawnFiles)
       ), {
         evalBishopPair: this.evalBishopPair(pieces),
-        evalControl: this.evalControl(color, opponentKing, pieces, isEndgame),
+        evalControl: this.evalControl(color, opponentKing, pieces, piecesAttacks.attacks, isEndgame),
         evalDevelopment: this.evalDevelopment(color, pieces),
         evalDoubledPawns: this.evalDoubledPawns(pawnFiles),
-        evalHangingPieces: this.evalHangingPieces(color, pieces, opponentPieces),
+        evalHangingPieces: this.evalHangingPieces(color, opponentColor, pieces, piecesAttacks.squareAttacks),
         evalKingSafety: this.evalKingSafety(color, king, isEndgame),
         evalMaterial: this.evalMaterial(pieces),
         evalPassedPawns: this.evalPassedPawns(color, opponentColor, pawns, isEndgame),
@@ -101,10 +159,10 @@ export default class Bot extends Game {
 
     return (
       this.evalBishopPair(pieces)
-      + this.evalControl(color, opponentKing, pieces, isEndgame)
+      + this.evalControl(color, opponentKing, pieces, piecesAttacks.attacks, isEndgame)
       + this.evalDevelopment(color, pieces)
       + this.evalDoubledPawns(pawnFiles)
-      + this.evalHangingPieces(color, pieces, opponentPieces)
+      + this.evalHangingPieces(color, opponentColor, pieces, piecesAttacks.squareAttacks)
       + this.evalKingSafety(color, king, isEndgame)
       + this.evalMaterial(color)
       + this.evalPassedPawns(color, opponentColor, pawns, isEndgame)
@@ -114,24 +172,26 @@ export default class Bot extends Game {
   }
 
   evalBishopPair(pieces: ColorPieces): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     let bishopsCount = 0;
 
     for (const pieceId in pieces) {
       if (pieces[pieceId].type === PieceType.BISHOP) {
         if (++bishopsCount === 2) {
+          this.evalBishopPairTime += process.hrtime.bigint() - timestamp;
+
           return 500;
         }
       }
     }
 
-    this.evalBishopPairTime += Date.now() - timestamp;
+    this.evalBishopPairTime += process.hrtime.bigint() - timestamp;
 
     return 0;
   }
 
-  evalControl(color: Color, opponentKing: Piece, pieces: ColorPieces, isEndgame: boolean): number {
-    const timestamp = Date.now();
+  evalControl(color: Color, opponentKing: Piece, pieces: ColorPieces, piecesAttacks: PiecesAttacks['attacks'], isEndgame: boolean): number {
+    const timestamp = process.hrtime.bigint();
     let score = 0;
     const distances = Bot.distances[opponentKing.square];
     const isWhite = color === Color.WHITE;
@@ -143,10 +203,10 @@ export default class Bot extends Game {
         continue;
       }
 
-      const legalMoves = this.getPossibleMoves(piece, GetPossibleMovesType.ATTACKED);
+      const attacks = piecesAttacks[pieceId];
 
-      for (let i = 0, l = legalMoves.length; i < l; i++) {
-        const square = legalMoves[i];
+      for (let i = 0, l = attacks.length; i < l; i++) {
+        const square = attacks[i];
         const rank = square >> 3;
         const file = square & 7;
         const distanceToOpponentKing = distances[square];
@@ -171,13 +231,13 @@ export default class Bot extends Game {
       }
     }
 
-    this.evalControlTime += Date.now() - timestamp;
+    this.evalControlTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   evalDevelopment(color: Color, pieces: ColorPieces): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     let score = 0;
 
     for (const pieceId in pieces) {
@@ -203,13 +263,13 @@ export default class Bot extends Game {
       );
     }
 
-    this.evalDevelopmentTime += Date.now() - timestamp;
+    this.evalDevelopmentTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   evalDoubledPawns(pawnFiles: PawnFiles): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     let score = 0;
 
     for (const file in pawnFiles) {
@@ -218,39 +278,17 @@ export default class Bot extends Game {
       }
     }
 
-    this.evalDoubledPawnsTime += Date.now() - timestamp;
+    this.evalDoubledPawnsTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
-  evalHangingPieces(color: Color, pieces: ColorPieces, opponentPieces: ColorPieces): number {
-    const timestamp = Date.now();
+  evalHangingPieces(color: Color, opponentColor: Color, pieces: ColorPieces, squareAttacks: PiecesAttacks['squareAttacks']): number {
+    const timestamp = process.hrtime.bigint();
     const coeff = this.turn === color ? 100 : 1000;
     let score = 0;
-    const defendedSquares: { [square in number]: Piece[]; } = {};
-    const attackedSquares: { [square in number]: Piece[]; } = {};
-
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
-      const defendedSquaresByPiece = this.getPossibleMoves(piece, GetPossibleMovesType.ATTACKED);
-
-      for (let i = 0, l = defendedSquaresByPiece.length; i < l; i++) {
-        const defendedSquare = defendedSquaresByPiece[i];
-
-        (defendedSquares[defendedSquare] = defendedSquares[defendedSquare] || []).push(piece);
-      }
-    }
-
-    for (const pieceId in opponentPieces) {
-      const opponentPiece = opponentPieces[pieceId];
-      const attackedSquaresByPiece = this.getPossibleMoves(opponentPiece, GetPossibleMovesType.ATTACKED);
-
-      for (let i = 0, l = attackedSquaresByPiece.length; i < l; i++) {
-        const attackedSquare = attackedSquaresByPiece[i];
-
-        (attackedSquares[attackedSquare] = attackedSquares[attackedSquare] || []).push(opponentPiece);
-      }
-    }
+    const defendedSquares = squareAttacks[color];
+    const attackedSquares = squareAttacks[opponentColor];
 
     for (const pieceId in pieces) {
       const piece = pieces[pieceId];
@@ -311,7 +349,7 @@ export default class Bot extends Game {
 
           lossStates.push(-Bot.piecesWorth[pieceToTake]);
 
-          pieceToTake = lessValuableAttacker.type;
+          pieceToTake = lessValuableAttacker;
           state = 1;
         } else {
           let lessValuableDefender = defendingPieces.pop();
@@ -343,7 +381,7 @@ export default class Bot extends Game {
 
           lossStates.push(Bot.piecesWorth[pieceToTake]);
 
-          pieceToTake = lessValuableDefender.type;
+          pieceToTake = lessValuableDefender;
           state = 0;
         }
       }
@@ -381,30 +419,39 @@ export default class Bot extends Game {
       score += (minLossIndex < maxWinIndex ? minLoss : maxWin) * coeff;
     }
 
-    this.evalHangingPiecesTime += Date.now() - timestamp;
+    this.evalHangingPiecesTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   evalKingSafety(color: Color, king: Piece, isEndgame: boolean): number {
+    const timestamp = process.hrtime.bigint();
+
     if (isEndgame) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return 0;
     }
 
-    const timestamp = Date.now();
     const kingFile = king.square & 7;
     const kingRank = king.square >> 3;
     const isWhite = color === Color.WHITE;
 
-    if (isWhite ? kingRank > Bot.ranks.RANK_4[Color.WHITE] : kingRank < Bot.ranks.RANK_4[Color.WHITE]) {
+    if (isWhite ? kingRank > Bot.ranks.RANK_4[Color.WHITE] : kingRank < Bot.ranks.RANK_4[Color.BLACK]) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return -3000;
     }
 
     if (kingRank === Bot.ranks.RANK_4[color]) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return -2000;
     }
 
     if (kingRank === Bot.ranks.RANK_3[color]) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return -1000;
     }
 
@@ -413,16 +460,22 @@ export default class Bot extends Game {
       && kingFile >= Bot.files.FILE_C
       && kingFile < Bot.files.FILE_G
     ) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return kingFile === Bot.files.FILE_D || kingFile === Bot.files.FILE_E
         ? -750
         : -500;
     }
 
     if (kingFile === Bot.files.FILE_D || kingFile === Bot.files.FILE_E) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return -250;
     }
 
     if (kingFile === Bot.files.FILE_F) {
+      this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
+
       return -100;
     }
 
@@ -453,22 +506,22 @@ export default class Bot extends Game {
       }
     }
 
-    this.evalKingSafetyTime += Date.now() - timestamp;
+    this.evalKingSafetyTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   evalMaterial(color: Color): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     const score = this.material[color] * 1000;
 
-    this.evalMaterialTime += Date.now() - timestamp;
+    this.evalMaterialTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   evalPassedPawns(color: Color, opponentColor: Color, pawns: Piece[], isEndgame: boolean): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     const opponentPawns = this.getPawns(opponentColor);
     const passedPawnFiles: { [file in number]: number; } = {};
     const isWhite = color === Color.WHITE;
@@ -558,13 +611,13 @@ export default class Bot extends Game {
       );
     }
 
-    this.evalPassedPawnsTime += Date.now() - timestamp;
+    this.evalPassedPawnsTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   evalPawnIslands(pawnFiles: PawnFiles): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     let state: 'island' | 'no-island' | null = null;
     let islandsCount = 0;
 
@@ -582,13 +635,13 @@ export default class Bot extends Game {
       }
     }
 
-    this.evalPawnIslandsTime += Date.now() - timestamp;
+    this.evalPawnIslandsTime += process.hrtime.bigint() - timestamp;
 
     return (islandsCount - 1) * -200;
   }
 
   evalRooksActivity(pieces: ColorPieces, pawnFiles: PawnFiles): number {
-    const timestamp = Date.now();
+    const timestamp = process.hrtime.bigint();
     let score = 0;
 
     for (const pieceId in pieces) {
@@ -599,31 +652,52 @@ export default class Bot extends Game {
       }
     }
 
-    this.evalRooksActivityTime += Date.now() - timestamp;
+    this.evalRooksActivityTime += process.hrtime.bigint() - timestamp;
 
     return score;
   }
 
   executeMiniMax(depth: number, isSame: boolean, currentOptimalScore: number): number {
     if (this.result !== null) {
-      return this.getFinishedGameScore(depth);
+      const result = this.getFinishedGameScore(this.result, depth);
+
+      this.visitedPositions.set(this.position, result);
+
+      return result;
+    }
+
+    const currentResult = this.visitedPositions.get(this.position);
+
+    if (currentResult === null) {
+      return isSame ? -Infinity : Infinity;
+    }
+
+    if (currentResult !== undefined) {
+      return currentResult;
     }
 
     if (depth === Bot.SEARCH_DEPTH) {
-      return this.eval(depth);
+      const result = this.eval(depth);
+
+      this.visitedPositions.set(this.position, result);
+
+      return result;
     }
 
     const turn = this.turn;
     const pieces = this.pieces[turn];
 
     let maxScore = isSame ? -Infinity : Infinity;
+    let wereLegalMoves = false;
 
     for (const pieceId in pieces) {
       const piece = pieces[pieceId];
-      const possibleMoves = this.getLegalMoves(piece);
+      const legalMoves = this.getLegalMoves(piece);
 
-      for (let i = 0, l = possibleMoves.length; i < l; i++) {
-        const square = possibleMoves[i];
+      for (let i = 0, l = legalMoves.length; i < l; i++) {
+        wereLegalMoves = true;
+
+        const square = legalMoves[i];
         let move = piece.square << 9 | square << 3;
 
         if (piece.type === PieceType.PAWN && square in Bot.promotionSquares[turn]) {
@@ -631,19 +705,30 @@ export default class Bot extends Game {
         }
 
         const moveObject = this.performMove(move);
-
         const score = this.executeMiniMax(isSame ? depth : depth + 1, !isSame, maxScore);
 
         if (isSame ? score >= currentOptimalScore : score <= currentOptimalScore) {
           this.revertMove(moveObject);
 
-          return isSame ? Infinity : -Infinity;
+          const result = isSame ? Infinity : -Infinity;
+
+          this.visitedPositions.set(this.position, result);
+
+          return result;
         }
 
         maxScore = isSame ? Math.max(maxScore, score) : Math.min(maxScore, score);
 
         this.revertMove(moveObject);
       }
+    }
+
+    if (!wereLegalMoves) {
+      const result = this.getFinishedGameScore(this.isCheck ? Bot.oppositeColor[this.turn] as 0 | 1 : Result.DRAW, depth);
+
+      this.visitedPositions.set(this.position, result);
+
+      return result;
     }
 
     return maxScore;
@@ -675,10 +760,10 @@ export default class Bot extends Game {
     return moves;
   }
 
-  getFinishedGameScore(depth: number): number {
-    return this.result === Result.DRAW
+  getFinishedGameScore(result: Result, depth: number): number {
+    return result === Result.DRAW
       ? 0
-      : this.result === this.color as 0 | 1
+      : result === this.color as 0 | 1
         ? Bot.MATE_SCORE - depth
         : -(Bot.MATE_SCORE - depth + 1)
   }
@@ -687,12 +772,14 @@ export default class Bot extends Game {
     const legalMoves = this.getAllLegalMoves();
 
     if (legalMoves.length === 1) {
-      console.log('only move', Bot.moveToUci(legalMoves[0]));
+      console.log('only move', Bot.moveToUci(legalMoves[0]).red.bold);
 
       return legalMoves[0];
     }
 
     const optimalLines = new Array(Bot.OPTIMAL_LINES_COUNT).fill(0).map(() => ({ move: 0, score: -Infinity }));
+
+    this.visitedPositions.clear();
 
     legalMoves
       .map((move) => {
@@ -743,8 +830,8 @@ export default class Bot extends Game {
       return;
     }
 
-    console.log(optimalMoves.map(({ move, score }) => ({ move: Game.moveToUci(move), score: Bot.getScore(score) })));
-    console.log(Bot.moveToUci(selectedMove.move), Bot.getScore(selectedMove.score));
+    console.log('optimal moves:', optimalMoves.map(({ move, score }) => `${Game.moveToUci(move).red.bold} (${Bot.getScore(score).green.bold})`).join(', '));
+    console.log(`picked move ${Bot.moveToUci(selectedMove.move).red.bold} (${Bot.getScore(selectedMove.score).green.bold})`);
 
     return selectedMove.move;
   }
@@ -818,43 +905,49 @@ export default class Bot extends Game {
     }
 
     this.evals = 0;
-    this.evalTime = 0;
-    this.evalBishopPairTime = 0;
-    this.evalControlTime = 0;
-    this.evalDevelopmentTime = 0;
-    this.evalDoubledPawnsTime = 0;
-    this.evalHangingPiecesTime = 0;
-    this.evalKingSafetyTime = 0;
-    this.evalMaterialTime = 0;
-    this.evalPassedPawnsTime = 0;
-    this.evalPawnIslandsTime = 0;
-    this.evalRooksActivityTime = 0;
+    this.evalTime = 0n;
+    this.evalBishopPairTime = 0n;
+    this.evalControlTime = 0n;
+    this.evalDevelopmentTime = 0n;
+    this.evalDoubledPawnsTime = 0n;
+    this.evalHangingPiecesTime = 0n;
+    this.evalKingSafetyTime = 0n;
+    this.evalMaterialTime = 0n;
+    this.evalPassedPawnsTime = 0n;
+    this.evalPawnIslandsTime = 0n;
+    this.evalRooksActivityTime = 0n;
+    this.calculateAttacksTime = 0n;
+    this.calculateRestTime = 0n;
 
-    const time = Date.now();
+    const timestamp = process.hrtime.bigint();
     const move = this.getOptimalMove();
-    const moveTook = Date.now() - time;
+    const moveTook = Number(process.hrtime.bigint() - timestamp) / 1e6;
+    const evalTook = Number(this.evalTime) / 1e6;
 
-    console.log(`move took ${moveTook} ms`);
-    console.log(`eval took ${this.evalTime} ms`);
-    console.log(`rest took ${moveTook - this.evalTime} ms`);
-    /*
-    console.log(`evalBishopPairTime took ${this.evalBishopPairTime} ms`);
-    console.log(`evalControlTime took ${this.evalControlTime} ms`);
-    console.log(`evalDevelopmentTime took ${this.evalDevelopmentTime} ms`);
-    console.log(`evalDoubledPawnsTime took ${this.evalDoubledPawnsTime} ms`);
-    console.log(`evalHangingPiecesTime took ${this.evalHangingPiecesTime} ms`);
-    console.log(`evalKingSafetyTime took ${this.evalKingSafetyTime} ms`);
-    console.log(`evalMaterialTime took ${this.evalMaterialTime} ms`);
-    console.log(`evalPassedPawnsTime took ${this.evalPassedPawnsTime} ms`);
-    console.log(`evalPawnIslandsTime took ${this.evalPawnIslandsTime} ms`);
-    console.log(`evalRooksActivityTime took ${this.evalRooksActivityTime} ms`);
-    console.log(`evals: ${this.evals}, took ${this.evalTime} ms`);
-    */
+    console.log(`move took ${`${moveTook}`.red.bold} ms`);
+    console.log(`eval took ${`${evalTook}`.red.bold} ms`);
+    console.log(`rest took ${`${moveTook - evalTook}`.red.bold} ms`);
+    console.log(`evalBishopPair took ${Number(this.evalBishopPairTime) / 1e6} ms`);
+    console.log(`evalControl took ${Number(this.evalControlTime) / 1e6} ms`);
+    console.log(`evalDevelopment took ${Number(this.evalDevelopmentTime) / 1e6} ms`);
+    console.log(`evalDoubledPawns took ${Number(this.evalDoubledPawnsTime) / 1e6} ms`);
+    console.log(`evalHangingPieces took ${Number(this.evalHangingPiecesTime) / 1e6} ms`);
+    console.log(`evalKingSafety took ${Number(this.evalKingSafetyTime) / 1e6} ms`);
+    console.log(`evalMaterial took ${Number(this.evalMaterialTime) / 1e6} ms`);
+    console.log(`evalPassedPawns took ${Number(this.evalPassedPawnsTime) / 1e6} ms`);
+    console.log(`evalPawnIslands took ${Number(this.evalPawnIslandsTime) / 1e6} ms`);
+    console.log(`evalRooksActivity took ${Number(this.evalRooksActivityTime) / 1e6} ms`);
+    console.log(`calculateAttacks took ${Number(this.calculateAttacksTime) / 1e6} ms`);
+    console.log(`calculateRest took ${Number(this.calculateRestTime) / 1e6} ms`);
+    console.log(`evals: ${`${this.evals}`.blue.bold}, took ${`${evalTook}`.red.bold} ms`);
+    console.log(`performance: ${`${this.evals / (moveTook / 1000)}`.green.bold} nodes/s`);
+    console.log('-'.repeat(80).black.bold);
 
+    // return undefined;
     return move;
   }
 
-  pieceSorter = ({ type: type1 }: Piece, { type: type2 }: Piece): number => {
-    return Bot.piecesWorth[type2] - Bot.piecesWorth[type1];
+  pieceSorter = (type1: PieceType, type2: PieceType): number => {
+    return type1 - type2;
   };
 }
