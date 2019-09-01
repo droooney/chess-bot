@@ -668,32 +668,6 @@ export default class Bot extends Game {
     return maxScore;
   }
 
-  getAllLegalMoves(): number[] {
-    const moves: number[] = [];
-    const pieces = this.pieces[this.turn];
-
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
-      const legalMoves = this.getLegalMoves(piece);
-
-      for (let i = 0, l = legalMoves.length; i < l; i++) {
-        const square = legalMoves[i];
-        const move = piece.square << 9 | square << 3;
-
-        if (piece.type === PieceType.PAWN && square in Bot.promotionSquares[this.turn]) {
-          moves.push(move | PieceType.QUEEN);
-          moves.push(move | PieceType.KNIGHT);
-          moves.push(move | PieceType.ROOK);
-          moves.push(move | PieceType.BISHOP);
-        } else {
-          moves.push(move);
-        }
-      }
-    }
-
-    return moves;
-  }
-
   getFinishedGameScore(result: Result, depth: number): number {
     return result === Result.DRAW
       ? 0
@@ -748,7 +722,7 @@ export default class Bot extends Game {
         };
       });
 
-    const threshold = Math.abs(optimalLines[0].score ) > 1e6
+    const threshold = Math.abs(optimalLines[0].score) > 1e6
       ? 0
       : Bot.OPTIMAL_MOVE_THRESHOLD;
 

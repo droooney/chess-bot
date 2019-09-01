@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "perft": "ts-node ./app/perft.ts",
     "start": "NODE_ENV=production TOKEN=1NGMeQ6253r2WI1W NAME=tonygbot ts-node app/index.ts",
     "start-dev": "NODE_ENV=development TOKEN=4Gi6xmE4CzdnjHwx NAME=tonygbotdev ts-node app/index.ts"
   },
@@ -29,6 +30,7 @@
   "dependencies": {
     "colors": "^1.3.3",
     "lodash": "^4.17.15",
-    "qs": "^6.8.0"
+    "qs": "^6.8.0",
+    "stockfish": "^10.0.2"
   }
 }

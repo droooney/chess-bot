@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Title</title>
+  <script>
+    const stockfish = new Worker('../node_modules/stockfish/src/stockfish.js');
+    const map = {};
+
+    stockfish.onmessage = ({ data }) => {
+      const match = data.match(/^([a-h1-8]{4}[qnbr]?): (\d+)/);
+
+      if (match) {
+        map[match[1]] = +match[2];
+      }
+
+      if (!data) {
+        console.log(JSON.stringify(map, null, 2));
+      }
+    };
+
+    stockfish.postMessage('position fen r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/P2P1RPP/Q5K1 b kq - 0 2');
+    stockfish.postMessage('d');
+    stockfish.postMessage('go perft 1');
+  </script>
+</head>
+<body>
+
+</body>
+</html>

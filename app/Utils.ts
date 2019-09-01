@@ -232,11 +232,11 @@ export default class Utils {
     k: Castling.BLACK_KING_SIDE,
     q: Castling.BLACK_QUEEN_SIDE
   };
-  static rookCastlingSides: { [rookSquare in number]: CastlingSide; } = {
-    [Utils.squares[0][0]]: CastlingSide.QUEEN,
-    [Utils.squares[7][0]]: CastlingSide.QUEEN,
-    [Utils.squares[0][7]]: CastlingSide.KING,
-    [Utils.squares[7][7]]: CastlingSide.KING
+  static rookCastlingPermissions: { [rookSquare in number]: Castling; } = {
+    [Utils.squares[0][0]]: Castling.WHITE_QUEEN_SIDE,
+    [Utils.squares[7][0]]: Castling.BLACK_QUEEN_SIDE,
+    [Utils.squares[0][7]]: Castling.WHITE_KING_SIDE,
+    [Utils.squares[7][7]]: Castling.BLACK_KING_SIDE
   };
   static kingCastlingSides: { [kingSquare in number]: CastlingSide; } = {
     [Utils.squares[0][2]]: CastlingSide.QUEEN,
