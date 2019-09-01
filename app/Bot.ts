@@ -748,8 +748,12 @@ export default class Bot extends Game {
         };
       });
 
+    const threshold = Math.abs(optimalLines[0].score ) > 1e6
+      ? 0
+      : Bot.OPTIMAL_MOVE_THRESHOLD;
+
     for (let i = Bot.OPTIMAL_LINES_COUNT - 1; i > 0; i--) {
-      if (optimalLines[0].score - optimalLines[i].score > Bot.OPTIMAL_MOVE_THRESHOLD) {
+      if (optimalLines[0].score - optimalLines[i].score > threshold) {
         optimalLines[i] = { move: 0, score: -Infinity };
       } else {
         break;
