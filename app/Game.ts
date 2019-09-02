@@ -113,16 +113,16 @@ export default class Game extends Utils {
     }
 
     if (piece.type === PieceType.PAWN) {
-      return Game.pawnCaptureMoves[piece.color][piece.square];
+      return Game.pawnAttacks[piece.color][piece.square];
     }
 
     const attacks: number[] = [];
     const pieceAttacks = Game.slidingAttacks[piece.type][piece.square];
 
-    for (let i = 0, l = pieceAttacks.length; i < l; i++) {
+    for (let i = 0; i < pieceAttacks.length; i++) {
       const directionAttacks = pieceAttacks[i];
 
-      for (let i = 0, l = directionAttacks.length; i < l; i++) {
+      for (let i = 0; i < directionAttacks.length; i++) {
         const square = directionAttacks[i];
         const pieceInSquare = this.board[square];
 
@@ -138,16 +138,34 @@ export default class Game extends Utils {
   }
 
   getLegalMoves(piece: Piece): number[] {
-    const legalMoves: number[] = [];
     const possibleMoves = this.getPseudoLegalMoves(piece);
     const isPawn = piece.type === PieceType.PAWN;
+    const kingSquare = this.kings[this.turn].square;
+    const isNoCheckAndNotAlignedWithKing = !this.isCheck && piece.type !== PieceType.KING && (
+      !Game.isAlignedOrthogonally[piece.square][kingSquare]
+      && !Game.isAlignedDiagonally[piece.square][kingSquare]
+    );
+
+    if (isNoCheckAndNotAlignedWithKing && !isPawn) {
+      return possibleMoves;
+    }
+
+    const legalMoves: number[] = [];
     const prevSquare = piece.square;
     const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
+    const isAlmostLegal = isNoCheckAndNotAlignedWithKing && isPawn;
 
     this.board[prevSquare] = null;
 
     for (let i = 0, l = possibleMoves.length; i < l; i++) {
       const square = possibleMoves[i];
+
+      if (isAlmostLegal && square !== this.possibleEnPassant) {
+        legalMoves.push(square);
+
+        continue;
+      }
+
       const capturedPiece = isPawn && square === this.possibleEnPassant
         ? enPassantCapturedPawn
         : this.board[square];
@@ -264,7 +282,7 @@ export default class Game extends Utils {
       moves.push(square);
     }
 
-    const captureMoves = Game.pawnCaptureMoves[piece.color][piece.square];
+    const captureMoves = Game.pawnAttacks[piece.color][piece.square];
 
     for (let i = 0, l = captureMoves.length; i < l; i++) {
       const square = captureMoves[i];
@@ -367,13 +385,47 @@ export default class Game extends Utils {
   isSquareAttacked(square: number): boolean {
     const pieces = this.pieces[Game.oppositeColor[this.turn]];
 
-    for (const pieceId in pieces) {
-      const attacks = this.getAttacks(pieces[pieceId]);
+    pieces: for (const pieceId in pieces) {
+      const piece = pieces[pieceId];
 
-      for (let i = 0, l = attacks.length; i < l; i++) {
-        if (attacks[i] === square) {
+      if (piece.type === PieceType.KING || piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
+        if (
+          square in (
+            piece.type === PieceType.KING
+              ? Game.kingAttacksMap[piece.square]
+              : piece.type === PieceType.KNIGHT
+                ? Game.knightAttacksMap[piece.square]
+                : Game.pawnAttacksMap[piece.color][piece.square]
+          )
+        ) {
           return true;
         }
+      } else {
+        if (piece.type === PieceType.ROOK && !Game.isAlignedOrthogonally[square][piece.square]) {
+          continue;
+        }
+
+        if (piece.type === PieceType.BISHOP && !Game.isAlignedDiagonally[square][piece.square]) {
+          continue;
+        }
+
+        if (
+          piece.type === PieceType.QUEEN
+          && !Game.isAlignedOrthogonally[square][piece.square]
+          && !Game.isAlignedDiagonally[square][piece.square]
+        ) {
+          continue;
+        }
+
+        const middleSquares = Game.middleSquares[piece.square][square];
+
+        for (let i = 0, l = middleSquares.length; i < l; i++) {
+          if (this.board[middleSquares[i]]) {
+            continue pieces;
+          }
+        }
+
+        return true;
       }
     }
 
@@ -403,8 +455,7 @@ export default class Game extends Utils {
       : this.board[to];
     let castlingRook: Piece | null = null;
 
-    this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
-    this.position ^= this.pieceKeys[piece.color][piece.type][to];
+    this.position ^= this.pieceKeys[piece.color][piece.type][piece.square] ^ this.pieceKeys[piece.color][piece.type][to];
 
     this.board[piece.square] = null;
     this.board[to] = piece;
@@ -433,8 +484,7 @@ export default class Game extends Utils {
       } = Game.castlingParams[pieceColor][Game.kingCastlingSides[to]];
       const rook = this.board[rookSquare]!;
 
-      this.position ^= this.pieceKeys[rook.color][rook.type][rook.square];
-      this.position ^= this.pieceKeys[rook.color][rook.type][newRookSquare];
+      this.position ^= this.pieceKeys[rook.color][rook.type][rook.square] ^ this.pieceKeys[rook.color][rook.type][newRookSquare];
 
       this.board[rook.square] = null;
       this.board[newRookSquare] = rook;
@@ -469,6 +519,7 @@ export default class Game extends Utils {
     if (promotion) {
       piece.type = promotion;
       this.material[pieceColor] += Game.piecesWorth[promotion] - Game.piecesWorth[PieceType.PAWN];
+      this.position ^= this.pieceKeys[piece.color][PieceType.PAWN][to] ^ this.pieceKeys[piece.color][promotion][to];
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
@@ -528,6 +579,24 @@ export default class Game extends Utils {
       prevPossibleCastling,
       prevPliesWithoutCaptureOrPawnMove
     };
+  }
+
+  printBoard(): string {
+    const rows: string[][] = [];
+
+    for (let i = 0; i < 8; i++) {
+      rows.push([]);
+
+      for (let j = 0; j < 8; j++) {
+        const square = i << 3 | j;
+
+        rows[i][j] = this.board[square]
+          ? Game.pieceLiterals[this.board[square]!.color][this.board[square]!.type]
+          : '.';
+      }
+    }
+
+    return rows.reverse().map((row) => row.join('  ')).join('\n') + '\n';
   }
 
   revertMove(move: Move) {

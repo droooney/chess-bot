@@ -17,7 +17,7 @@ export default class LichessBot {
   token: string;
   name: string;
   isProduction: boolean;
-  bots: { [gameId: string]: Bot; } = {};
+  bots: { [gameId: string]: Bot | null; } = {};
 
   constructor(token: string, name: string, isProduction: boolean) {
     this.token = token;
@@ -122,7 +122,9 @@ export default class LichessBot {
   }
 
   async handleGameStart(gameId: string) {
-    console.log(`game ${gameId.blue.bold} started. prev number of games: ${Object.keys(this.bots).length}`);
+    this.bots[gameId] = null;
+
+    console.log(`game ${gameId.blue.bold} started. number of games: ${Object.keys(this.bots).length}`);
 
     const stream = this.createStream<LichessGameEvent>(`/api/bot/game/stream/${gameId}`);
 
@@ -130,7 +132,8 @@ export default class LichessBot {
       if (event.type === 'gameFull') {
         const bot = this.bots[gameId] = new Bot(
           event.initialFen === 'startpos' ? Bot.standardFen : event.initialFen,
-          event.white.id === this.name ? Color.WHITE : Color.BLACK
+          event.white.id === this.name ? Color.WHITE : Color.BLACK,
+          !this.isProduction
         );
 
         this.handleGameState(gameId, bot, event.state);

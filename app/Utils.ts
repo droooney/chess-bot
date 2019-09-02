@@ -80,9 +80,9 @@ export default class Utils {
     new Array(8).fill(0).map((_v, x) => y << 3 | x)
   ));
   static allSquares: number[] = new Array(64).fill(0).map((_v, i) => i);
-  static squareRanks: { [square in number]: number } = Utils.allSquares.map((square) => square >> 3);
-  static squareFiles: { [square in number]: number } = Utils.allSquares.map((square) => square & 7);
-  static diagonalMoves: { [square in number]: number[][]; } = Utils.allSquares.map((square) => [
+  static squareRanks: number[] = Utils.allSquares.map((square) => square >> 3);
+  static squareFiles: number[] = Utils.allSquares.map((square) => square & 7);
+  static diagonalMoves: number[][][] = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, +1, +1, false),
     Utils.traverseDirection(square, +1, -1, false),
     Utils.traverseDirection(square, -1, +1, false),
@@ -94,7 +94,7 @@ export default class Utils {
     Utils.traverseDirection(square, +1, 0, false),
     Utils.traverseDirection(square, -1, 0, false)
   ].filter((moves) => moves.length));
-  static kingMoves: { [square in number]: number[]; } = Utils.allSquares.map((square) => [
+  static kingMoves: number[][] = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, +1, +1, true),
     Utils.traverseDirection(square, +1, -1, true),
     Utils.traverseDirection(square, -1, +1, true),
@@ -104,6 +104,9 @@ export default class Utils {
     Utils.traverseDirection(square, +1, 0, true),
     Utils.traverseDirection(square, -1, 0, true)
   ].flat());
+  static kingAttacksMap: { [square in number]: boolean; }[] = Utils.kingMoves.map((attacks) => (
+    Utils.arrayToMap(attacks, () => true)
+  ));
   static slidingAttacks: { [type in PieceType.BISHOP | PieceType.ROOK | PieceType.QUEEN]: { [square in number]: number[][]; }; } = {
     [PieceType.QUEEN]: Utils.allSquares.map((square) => [
       ...Utils.diagonalMoves[square],
@@ -112,7 +115,7 @@ export default class Utils {
     [PieceType.ROOK]: Utils.allSquares.map((square) => Utils.orthogonalMoves[square]),
     [PieceType.BISHOP]: Utils.allSquares.map((square) => Utils.diagonalMoves[square])
   };
-  static knightMoves: { [square in number]: number[]; } = Utils.allSquares.map((square) => [
+  static knightMoves: number[][] = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, +2, +1, true),
     Utils.traverseDirection(square, +2, -1, true),
     Utils.traverseDirection(square, -2, +1, true),
@@ -122,7 +125,10 @@ export default class Utils {
     Utils.traverseDirection(square, -1, +2, true),
     Utils.traverseDirection(square, -1, -2, true)
   ].flat());
-  static pawnAdvanceMoves: { [color in Color]: { [square in number]: number[]; }; } = [
+  static knightAttacksMap: { [square in number]: boolean; }[] = Utils.knightMoves.map((attacks) => (
+    Utils.arrayToMap(attacks, () => true)
+  ));
+  static pawnAdvanceMoves: { [color in Color]: number[][]; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
       const y = square >> 3;
@@ -144,7 +150,7 @@ export default class Utils {
           : [Utils.squares[y - 1][x]];
     })
   ];
-  static pawnDoubleAdvanceMoves: { [color in Color]: { [square in number]: number | null; }; } = [
+  static pawnDoubleAdvanceMoves: { [color in Color]: (number | null)[]; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
       const y = square >> 3;
@@ -162,45 +168,37 @@ export default class Utils {
         : null;
     })
   ];
-  static pawnEnPassantSquaresMap: { [square in number]: number; } = [
+  static pawnEnPassantSquaresMap: { [square in number]: number; } = Utils.arrayToMap([
     ...Utils.squares[1],
     ...Utils.squares[6]
-  ].reduce((squares, square) => {
+  ], (square) => {
     const x = square & 7;
     const y = square >> 3;
 
-    return {
-      ...squares,
-      [square]: y === 1
-        ? Utils.squares[y + 1][x]
-        : Utils.squares[y - 1][x]
-    };
-  }, {} as { [square in number]: number; });
-  static pawnEnPassantSquares: { [square in number]: true; } = [
+    return y === 1
+      ? Utils.squares[y + 1][x]
+      : Utils.squares[y - 1][x];
+  });
+  static pawnEnPassantSquares: { [square in number]: boolean; } = Utils.arrayToMap([
     ...Utils.squares[2],
     ...Utils.squares[5]
-  ].reduce((squares, square) => ({
-    ...squares,
-    [square]: true
-  }), {} as { [square in number]: true; });
+  ], () => true);
   static pawnEnPassantPieceSquares: { [square in number]: number; } = _.mapValues(Utils.pawnEnPassantSquares, (_v, square) => (
     (+square >> 3) === 2
       ? +square + 8
       : +square - 8
   ));
-  static pawnEnPassantOpponentPawnSquares: { [square in number]: [number, number]; } = [
+  static pawnEnPassantOpponentPawnSquares: { [square in number]: [number, number]; } = Utils.arrayToMap([
     ...Utils.squares[3],
     ...Utils.squares[4]
-  ].reduce((squares, square) => {
-    squares[square] = (square & 7) === 0
-      ? [0, square + 1]
+  ], (square) => (
+    (square & 7) === 0
+      ? [-1, square + 1]
       : (square & 7) === 7
-        ? [square - 1, 0]
-        : [square - 1, square + 1];
-
-    return squares;
-  }, {} as { [square in number]: [number, number]; });
-  static pawnCaptureMoves: { [color in Color]: { [square in number]: number[]; }; } = [
+        ? [square - 1, -1]
+        : [square - 1, square + 1]
+  ));
+  static pawnAttacks: { [color in Color]: number[][]; } = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
       const y = square >> 3;
@@ -218,9 +216,14 @@ export default class Utils {
         : [Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter((square) => square !== undefined);
     })
   ];
-  static promotionSquares: { [type in Color]: { [square in number]: true; }; } = [
-    Utils.allSquares.slice(56).reduce((squares, square) => ({ ...squares, [square]: true }), {}),
-    Utils.allSquares.slice(0, 8).reduce((squares, square) => ({ ...squares, [square]: true }), {})
+  static pawnAttacksMap: { [color in Color]: { [square in number]: boolean; }[]; } = _.mapValues(Utils.pawnAttacks, (colorAttacks) => (
+    colorAttacks.map((attacks) => (
+      Utils.arrayToMap(attacks, () => true)
+    ))
+  ));
+  static promotionSquares: { [type in Color]: { [square in number]: boolean; }; } = [
+    Utils.arrayToMap(Utils.allSquares.slice(56), () => true),
+    Utils.arrayToMap(Utils.allSquares.slice(0, 8), () => true)
   ];
   static castling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [
     [Castling.WHITE_KING_SIDE, Castling.WHITE_QUEEN_SIDE],
@@ -315,17 +318,66 @@ export default class Utils {
     FILE_G: 6,
     FILE_H: 7
   };
-  static distances: { [square in number]: { [square in number]: number } } = Utils.allSquares.map((square1) => (
+  static distances: number[][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => (
       Math.abs((square1 >> 3) - (square2 >> 3))
       + Math.abs((square1 & 7) - (square2 & 7))
     ))
   ));
+  static isAlignedOrthogonally: boolean[][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => (
+      (square1 >> 3) === (square2 >> 3)
+      || (square1 & 7) === (square2 & 7)
+    ))
+  ));
+  static isAlignedDiagonally: boolean[][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => (
+      Math.abs((square1 >> 3) - (square2 >> 3))
+      === Math.abs((square1 & 7) - (square2 & 7))
+    ))
+  ));
+  static middleSquares: number[][][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => {
+      if (
+        !Utils.isAlignedOrthogonally[square1][square2]
+        && !Utils.isAlignedDiagonally[square1][square2]
+      ) {
+        return [];
+      }
+
+      const middleSquares: number[] = [];
+      const incrementX = Math.sign((square2 & 7) - (square1 & 7));
+      const incrementY = Math.sign((square2 >> 3) - (square1 >> 3));
+      let square = square1;
+
+      while (true) {
+        square = (square >> 3) + incrementY << 3 | (square & 7) + incrementX;
+
+        if (square === square2) {
+          break;
+        }
+
+        middleSquares.push(square);
+      }
+
+      return middleSquares;
+    })
+  ));
   static directions = {
     UP: [1, -1],
     DOWN: [-1, 1]
   };
-  static colors = Utils.allSquares.map((square) => square >> 3 & 1 ^ square & 1);
+  static colors: number[] = Utils.allSquares.map((square) => square >> 3 & 1 ^ square & 1);
+
+  static arrayToMap<T extends string | number, R>(array: T[], callback: (value: T) => R): { [key in T]: R; } {
+    const map = {} as { [key in T]: R; };
+
+    array.forEach((value) => {
+      map[value] = callback(value);
+    });
+
+    return map;
+  }
 
   static uciToMove(uci: string): number {
     const [fromX, fromY, toX, toY, promotion] = uci;
