@@ -33,6 +33,8 @@ export default class Game extends Utils {
   turn: Color = Color.WHITE;
   result: Result | null = null;
   isCheck: boolean = false;
+  isDoubleCheck: boolean = false;
+  checkingPiece: Piece | null = null;
   board: Board = Game.allSquares.map(() => null);
   kings: { [color in Color]: Piece; } = [null!, null!];
   keys: { [key in string]: true; } = {};
@@ -137,33 +139,67 @@ export default class Game extends Utils {
     return attacks;
   }
 
+  getCheckingPiece(): Piece | null {
+    const pieces = this.pieces[Game.oppositeColor[this.turn]];
+
+    for (const pieceId in pieces) {
+      const piece = pieces[pieceId];
+
+      if (this.getAttacks(piece).includes(this.kings[this.turn].square)) {
+        return piece;
+      }
+    }
+
+    return null;
+  }
+
   getLegalMoves(piece: Piece): number[] {
+    const isKing = piece.type === PieceType.KING;
+
+    if (this.isDoubleCheck && !isKing) {
+      return [];
+    }
+
     const possibleMoves = this.getPseudoLegalMoves(piece);
     const isPawn = piece.type === PieceType.PAWN;
     const kingSquare = this.kings[this.turn].square;
-    const isNoCheckAndNotAlignedWithKing = !this.isCheck && piece.type !== PieceType.KING && (
+    const isNoCheckAndNotAlignedWithKing = !this.isCheck && !isKing && (
       !Game.isAlignedOrthogonally[piece.square][kingSquare]
       && !Game.isAlignedDiagonally[piece.square][kingSquare]
     );
 
-    if (isNoCheckAndNotAlignedWithKing && !isPawn) {
+    if (isNoCheckAndNotAlignedWithKing && (!isPawn || !this.possibleEnPassant)) {
       return possibleMoves;
     }
 
     const legalMoves: number[] = [];
     const prevSquare = piece.square;
     const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
-    const isAlmostLegal = isNoCheckAndNotAlignedWithKing && isPawn;
+    const isAlmostLegalPawnMove = isNoCheckAndNotAlignedWithKing && isPawn;
 
     this.board[prevSquare] = null;
 
     for (let i = 0, l = possibleMoves.length; i < l; i++) {
       const square = possibleMoves[i];
 
-      if (isAlmostLegal && square !== this.possibleEnPassant) {
+      if (isAlmostLegalPawnMove && square !== this.possibleEnPassant) {
         legalMoves.push(square);
 
         continue;
+      }
+
+      if (this.isCheck && !isKing && (!isPawn || square !== this.possibleEnPassant)) {
+        if (
+          // not capturing checking piece
+          square !== this.checkingPiece!.square
+          && (
+            // and not blocking slider checker
+            !(this.checkingPiece!.type in Game.sliders)
+            || !(square in Game.middleSquaresMap[kingSquare][this.checkingPiece!.square])
+          )
+        ) {
+          continue;
+        }
       }
 
       const capturedPiece = isPawn && square === this.possibleEnPassant
@@ -307,6 +343,21 @@ export default class Game extends Utils {
     return this.isSquareAttacked(this.kings[this.turn].square);
   }
 
+  isInDoubleCheck(): boolean {
+    const pieces = this.pieces[Game.oppositeColor[this.turn]];
+    let checkingPiecesCount = 0;
+
+    for (const pieceId in pieces) {
+      const piece = pieces[pieceId];
+
+      if (this.getAttacks(piece).includes(this.kings[this.turn].square)) {
+        checkingPiecesCount++;
+      }
+    }
+
+    return checkingPiecesCount === 2;
+  }
+
   isInsufficientMaterial(): boolean {
     const whiteHasMore = this.pieceCounts[Color.WHITE] > this.pieceCounts[Color.BLACK];
     const minPiecesColor = whiteHasMore
@@ -445,6 +496,8 @@ export default class Game extends Utils {
     } = piece;
     const opponentColor = Game.oppositeColor[this.turn];
     const wasCheck = this.isCheck;
+    const wasDoubleCheck = this.isDoubleCheck;
+    const prevCheckingPiece = this.checkingPiece;
     const prevPosition = this.position;
     const prevPossibleEnPassant = this.possibleEnPassant;
     const prevPossibleCastling = this.possibleCastling;
@@ -453,11 +506,12 @@ export default class Game extends Utils {
     const capturedPiece = isEnPassantCapture
       ? this.board[Game.pawnEnPassantPieceSquares[to]]
       : this.board[to];
+    let checkingPiece: Piece | null = null;
     let castlingRook: Piece | null = null;
 
-    this.position ^= this.pieceKeys[piece.color][piece.type][piece.square] ^ this.pieceKeys[piece.color][piece.type][to];
+    this.position ^= this.pieceKeys[pieceColor][pieceType][from] ^ this.pieceKeys[pieceColor][pieceColor][to];
 
-    this.board[piece.square] = null;
+    this.board[from] = null;
     this.board[to] = piece;
 
     piece.square = to;
@@ -519,7 +573,7 @@ export default class Game extends Utils {
     if (promotion) {
       piece.type = promotion;
       this.material[pieceColor] += Game.piecesWorth[promotion] - Game.piecesWorth[PieceType.PAWN];
-      this.position ^= this.pieceKeys[piece.color][PieceType.PAWN][to] ^ this.pieceKeys[piece.color][promotion][to];
+      this.position ^= this.pieceKeys[pieceColor][PieceType.PAWN][to] ^ this.pieceKeys[pieceColor][promotion][to];
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
@@ -554,8 +608,88 @@ export default class Game extends Utils {
       this.position ^= this.enPassantKeys[prevPossibleEnPassant];
     }
 
+    let isCheck = false;
+    let isNormalCheck = false;
+    let isDiscoveredCheck = false;
+    const opponentKingSquare = this.kings[opponentColor].square;
+    const newPieceType = piece.type;
+
+    if (newPieceType === PieceType.KNIGHT || newPieceType === PieceType.PAWN) {
+      isCheck = isNormalCheck = opponentKingSquare in (
+        newPieceType === PieceType.KNIGHT
+          ? Game.knightAttacksMap[to]
+          : Game.pawnAttacksMap[pieceColor][to]
+      );
+
+      if (isCheck) {
+        checkingPiece = piece;
+      }
+    } else if (newPieceType !== PieceType.KING) {
+      if (
+        ((newPieceType === PieceType.BISHOP || newPieceType === PieceType.QUEEN) && Game.isAlignedDiagonally[to][opponentKingSquare])
+        || ((newPieceType === PieceType.ROOK || newPieceType === PieceType.QUEEN) && Game.isAlignedOrthogonally[to][opponentKingSquare])
+      ) {
+        isCheck = isNormalCheck = true;
+
+        const middleSquares = Game.middleSquares[to][opponentKingSquare];
+
+        for (let i = 0; i < middleSquares.length; i++) {
+          if (this.board[middleSquares[i]]) {
+            isCheck = isNormalCheck = false;
+
+            break;
+          }
+        }
+
+        if (isCheck) {
+          checkingPiece = piece;
+        }
+      }
+    }
+
+    if (Game.isAlignedDiagonally[from][opponentKingSquare] || Game.isAlignedOrthogonally[from][opponentKingSquare]) {
+      const behindSquares = Game.behindSquares[from][opponentKingSquare];
+      const sliders = Game.isAlignedDiagonally[from][opponentKingSquare]
+        ? Game.diagonalSliders
+        : Game.orthogonalSliders;
+      let sliderBehind;
+
+      for (let i = 0; i < behindSquares.length; i++) {
+        const behindPiece = this.board[behindSquares[i]];
+
+        if (behindPiece) {
+          if (behindPiece.color === pieceColor && behindPiece.type in sliders) {
+            sliderBehind = behindPiece;
+          }
+
+          break;
+        }
+      }
+
+      if (sliderBehind) {
+        isDiscoveredCheck = true;
+
+        const middleSquares = Game.middleSquares[from][opponentKingSquare];
+
+        for (let i = 0; i < middleSquares.length; i++) {
+          if (this.board[middleSquares[i]]) {
+            isDiscoveredCheck = false;
+
+            break;
+          }
+        }
+
+        if (isDiscoveredCheck) {
+          isCheck = true;
+          checkingPiece = sliderBehind;
+        }
+      }
+    }
+
     this.turn = opponentColor;
-    this.isCheck = this.isInCheck();
+    this.isCheck = isCheck;
+    this.isDoubleCheck = isNormalCheck && isDiscoveredCheck;
+    this.checkingPiece = checkingPiece;
     this.positions.set(this.position, this.positions.get(this.position)! + 1 || 1);
 
     if (
@@ -574,6 +708,8 @@ export default class Game extends Utils {
       promotedPawn: promotion ? piece : null,
       castlingRook,
       wasCheck,
+      wasDoubleCheck,
+      prevCheckingPiece,
       prevPosition,
       prevPossibleEnPassant,
       prevPossibleCastling,
@@ -610,6 +746,8 @@ export default class Game extends Utils {
       promotedPawn,
       castlingRook,
       wasCheck,
+      wasDoubleCheck,
+      prevCheckingPiece,
       prevPosition,
       prevPossibleEnPassant,
       prevPossibleCastling,
@@ -641,6 +779,8 @@ export default class Game extends Utils {
     }
 
     this.isCheck = wasCheck;
+    this.isDoubleCheck = wasDoubleCheck;
+    this.checkingPiece = prevCheckingPiece;
 
     const positionCount = this.positions.get(this.position)!;
 
@@ -722,6 +862,8 @@ export default class Game extends Utils {
 
     this.pliesWithoutCaptureOrPawnMove = +pliesWithoutCaptureOrPawnMoveString;
     this.isCheck = this.isInCheck();
+    this.isDoubleCheck = this.isInDoubleCheck();
+    this.checkingPiece = this.getCheckingPiece();
     this.positions.set(this.position, 1);
   }
 }

@@ -24,7 +24,7 @@ export default class Bot extends Game {
   static getScore(score: number): string {
     return Math.abs(score) > 1e6
       ? `#${score < 0 ? '-' : ''}${Bot.MATE_SCORE - Math.abs(score) + 1}`
-      : `${score / 1000}`
+      : `${score / 1000}`;
   }
 
   color: Color;
@@ -632,15 +632,16 @@ export default class Bot extends Game {
 
         const timestamp = this.getTimestamp();
         const moveObject = this.performMove(move);
+        const timestamp2 = this.getTimestamp();
 
         const score = this.executeMiniMax(isSame ? depth : depth + 1, !isSame, bestScore);
-        const timestamp2 = this.getTimestamp();
+        const timestamp3 = this.getTimestamp();
 
         this.revertMove(moveObject);
 
         if (this.debug) {
           this.performMoveTime += timestamp2 - timestamp;
-          this.revertMoveTime += this.getTimestamp() - timestamp;
+          this.revertMoveTime += this.getTimestamp() - timestamp3;
         }
 
         if (score === null) {
@@ -826,7 +827,7 @@ export default class Bot extends Game {
 
     console.log(`evals: ${`${this.evals}`.blue.bold}, took ${`${evalTook}`.red.bold} ms`);
     console.log(`performance: ${`${+(this.evals / moveTook).toFixed(3)}`.green.bold} kn/s`);
-    console.log('-'.repeat(80).black.bold);
+    console.log('-'.repeat(80).bold);
 
     // return undefined;
     return move;

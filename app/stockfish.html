@@ -17,6 +17,12 @@
       if (!data) {
         console.log(JSON.stringify(map, null, 2));
       }
+
+      const nodesCountMatch = data.match(/^Nodes searched: \d+/);
+
+      if (nodesCountMatch) {
+        console.log(data);
+      }
     };
 
     stockfish.postMessage('position fen r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/P2P1RPP/Q5K1 b kq - 0 2');

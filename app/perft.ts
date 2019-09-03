@@ -5,6 +5,7 @@ import Game from './Game';
 const initialFen = Game.standardFen;
 const DEPTH = 4;
 const realMap = {};
+const mm = {};
 const checkPosition = false;
 const debug = false;
 const timestamp = process.hrtime.bigint();
@@ -36,6 +37,10 @@ const tests = [
   {
     initialFen: 'r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10',
     nodeCounts: [46, 2_079, 89_890, 3_894_594]
+  },
+  {
+    initialFen: 'rnbq1k1r/pp1P1ppp/2p5/8/2B4b/P7/1PP1NnPP/RNBQK2R w KQ - 1 9',
+    nodeCounts: [42, 1_432, 51_677, 1_747_286]
   }
 ];
 
@@ -103,6 +108,12 @@ function perft(initialFen: string, depth: number, useMap: boolean): number {
 
   const nodes = calculateNodes(depth);
   const time = Number(process.hrtime.bigint() - timestamp) / 1e6;
+
+  if (false) {
+    game.performMove(Game.uciToMove('g4h5'));
+    console.log(game.getAllLegalMoves().map(Game.moveToUci).sort().join(' '));
+    console.log(Object.keys(mm).sort().join(' '));
+  }
 
   console.log('fen:', initialFen);
   console.log('depth:', depth);

@@ -22,6 +22,8 @@ export interface Move {
   promotedPawn: Piece | null;
   castlingRook: Piece | null;
   wasCheck: boolean;
+  wasDoubleCheck: boolean;
+  prevCheckingPiece: Piece | null;
   prevPosition: bigint;
   prevPossibleEnPassant: number | null;
   prevPossibleCastling: number;
@@ -363,11 +365,45 @@ export default class Utils {
       return middleSquares;
     })
   ));
+  static middleSquaresMap: { [square in number]: boolean }[][] = Utils.middleSquares.map((middleSquares) => (
+    middleSquares.map((middleSquares) => Utils.arrayToMap(middleSquares, () => true))
+  ));
+  static behindSquares: number[][][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => {
+      if (
+        square1 === square2
+        || (
+          !Utils.isAlignedOrthogonally[square1][square2]
+          && !Utils.isAlignedDiagonally[square1][square2]
+        )
+      ) {
+        return [];
+      }
+
+      const incrementX = Math.sign((square1 & 7) - (square2 & 7));
+      const incrementY = Math.sign((square1 >> 3) - (square2 >> 3));
+
+      return Utils.traverseDirection(square1, incrementX, incrementY, false);
+    })
+  ));
   static directions = {
     UP: [1, -1],
     DOWN: [-1, 1]
   };
   static colors: number[] = Utils.allSquares.map((square) => square >> 3 & 1 ^ square & 1);
+  static sliders = {
+    [PieceType.BISHOP]: true,
+    [PieceType.ROOK]: true,
+    [PieceType.QUEEN]: true
+  };
+  static diagonalSliders = {
+    [PieceType.BISHOP]: true,
+    [PieceType.QUEEN]: true
+  };
+  static orthogonalSliders = {
+    [PieceType.ROOK]: true,
+    [PieceType.QUEEN]: true
+  };
 
   static arrayToMap<T extends string | number, R>(array: T[], callback: (value: T) => R): { [key in T]: R; } {
     const map = {} as { [key in T]: R; };
@@ -414,15 +450,11 @@ export default class Utils {
     const nextX = (square & 7) + incrementX;
     const nextY = (square >> 3) + incrementY;
 
-    if (nextY < 0 || nextY > 7) {
+    if (nextY < 0 || nextY > 7 || nextX < 0 || nextX > 7) {
       return [];
     }
 
     const nextSquare = Utils.squares[nextY][nextX];
-
-    if (nextSquare === undefined) {
-      return [];
-    }
 
     if (stopAfter1) {
       return [nextSquare];
