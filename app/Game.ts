@@ -509,7 +509,7 @@ export default class Game extends Utils {
     let checkingPiece: Piece | null = null;
     let castlingRook: Piece | null = null;
 
-    this.position ^= this.pieceKeys[pieceColor][pieceType][from] ^ this.pieceKeys[pieceColor][pieceColor][to];
+    this.position ^= this.pieceKeys[pieceColor][pieceType][from] ^ this.pieceKeys[pieceColor][pieceType][to];
 
     this.board[from] = null;
     this.board[to] = piece;
