@@ -31,7 +31,7 @@ export interface Move {
 }
 
 export interface Piece {
-  id: number;
+  index: number;
   type: PieceType;
   color: Color;
   square: number;
@@ -62,6 +62,12 @@ export enum Result {
   WHITE,
   BLACK,
   DRAW
+}
+
+export enum PinnedDirection {
+  DIAGONAL,
+  HORIZONTAL,
+  VERTICAL
 }
 
 export type Board = { [square in number]: Piece | null; };
@@ -365,7 +371,7 @@ export default class Utils {
       return middleSquares;
     })
   ));
-  static middleSquaresMap: { [square in number]: boolean }[][] = Utils.middleSquares.map((middleSquares) => (
+  static middleSquaresMap: { [square in number]: boolean; }[][] = Utils.middleSquares.map((middleSquares) => (
     middleSquares.map((middleSquares) => Utils.arrayToMap(middleSquares, () => true))
   ));
   static behindSquares: number[][][] = Utils.allSquares.map((square1) => (
@@ -385,6 +391,12 @@ export default class Utils {
 
       return Utils.traverseDirection(square1, incrementX, incrementY, false);
     })
+  ));
+  static behindAndMiddleSquaresMap: { [square in number]: boolean; }[][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => ({
+      ...Utils.middleSquaresMap[square1][square2],
+      ...Utils.arrayToMap(Utils.behindSquares[square1][square2], () => true)
+    }))
   ));
   static directions = {
     UP: [1, -1],

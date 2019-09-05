@@ -7,7 +7,7 @@ type PawnFiles = { [file in number]: number; };
 
 interface PiecesAttacks {
   squareAttacks: { [color in Color]: { [square in number]: PieceType[]; }; };
-  attacks: { [pieceId in number]: number[]; }
+  attacks: { [color in Color]: number[][]; }
 }
 
 interface VisitedPositionResult {
@@ -71,14 +71,19 @@ export default class Bot extends Game {
 
     const piecesAttacks: PiecesAttacks = {
       squareAttacks: [{}, {}],
-      attacks: {}
+      attacks: [[], []]
     };
     let pawnCount = 0;
 
     for (let color = Color.WHITE; color <= Color.BLACK; color++) {
-      for (const pieceId in this.pieces[color]) {
-        const piece = this.pieces[color][pieceId];
-        const attacks = piecesAttacks.attacks[pieceId] = this.getAttacks(piece);
+      const pieces = this.pieces[color];
+      const pieceCount = this.pieceCounts[color];
+
+      for (let i = 0; i < pieceCount; i++) {
+        const piece = pieces[i];
+        const attacks = this.getAttacks(piece);
+
+        piecesAttacks.attacks[color].push(attacks);
 
         if (piece.type === PieceType.PAWN) {
           pawnCount++;
@@ -377,6 +382,7 @@ export default class Bot extends Game {
     isEndgame: boolean
   ): number {
     const pieces = this.pieces[color];
+    const pieceCount = this.pieceCounts[color];
     const opponentColor = Bot.oppositeColor[color];
     const isWhite = color === Color.WHITE;
     const distances = Bot.distances[this.kings[opponentColor].square];
@@ -386,8 +392,8 @@ export default class Bot extends Game {
     let bishopsCount = 0;
     let score = 0;
 
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
       const file = Bot.squareFiles[piece.square];
       const rank = Bot.squareRanks[piece.square];
 
@@ -421,7 +427,7 @@ export default class Bot extends Game {
 
       // control
       if (piece.type !== PieceType.KING || isEndgame) {
-        const attacks = piecesAttacks.attacks[pieceId];
+        const attacks = piecesAttacks.attacks[color][i];
 
         for (let i = 0, l = attacks.length; i < l; i++) {
           const square = attacks[i];
@@ -602,6 +608,7 @@ export default class Bot extends Game {
 
     const turn = this.turn;
     const pieces = this.pieces[turn];
+    const pieceCount = this.pieceCounts[turn];
 
     let bestScore = isSame ? -Infinity : Infinity;
     let wereLegalMoves = false;
@@ -611,8 +618,8 @@ export default class Bot extends Game {
       this.visitedPositions.set(this.position, { score: null, depth });
     }
 
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
       const timestamp = this.getTimestamp();
       const legalMoves = this.getLegalMoves(piece);
 
@@ -766,10 +773,11 @@ export default class Bot extends Game {
 
   getPawns(color: Color): Piece[] {
     const pieces = this.pieces[color];
+    const pieceCount = this.pieceCounts[color];
     const pawns: Piece[] = [];
 
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
 
       if (piece.type === PieceType.PAWN) {
         pawns.push(piece);

@@ -4,10 +4,10 @@ import Utils, {
   Board,
   CastlingSide,
   Color,
-  ColorPieces,
   Move,
   Piece,
   PieceType,
+  PinnedDirection,
   Result
 } from './Utils';
 
@@ -38,8 +38,9 @@ export default class Game extends Utils {
   board: Board = Game.allSquares.map(() => null);
   kings: { [color in Color]: Piece; } = [null!, null!];
   keys: { [key in string]: true; } = {};
-  pieces: { [color in Color]: ColorPieces; } = [{}, {}];
+  pieces: { [color in Color]: Piece[]; } = [[], []];
   pieceCounts: { [color in Color]: number; } = [0, 0];
+  bishopsCount: number = 0;
   material: { [color in Color]: number; } = [0, 0];
   position: bigint = 0n;
   positions: Map<bigint, number> = new Map();
@@ -82,9 +83,10 @@ export default class Game extends Utils {
   getAllLegalMoves(): number[] {
     const moves: number[] = [];
     const pieces = this.pieces[this.turn];
+    const pieceCount = this.pieceCounts[this.turn];
 
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
       const legalMoves = this.getLegalMoves(piece);
 
       for (let i = 0, l = legalMoves.length; i < l; i++) {
@@ -141,9 +143,10 @@ export default class Game extends Utils {
 
   getCheckingPiece(): Piece | null {
     const pieces = this.pieces[Game.oppositeColor[this.turn]];
+    const pieceCount = this.pieceCounts[Game.oppositeColor[this.turn]];
 
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
 
       if (this.getAttacks(piece).includes(this.kings[this.turn].square)) {
         return piece;
@@ -160,22 +163,89 @@ export default class Game extends Utils {
       return [];
     }
 
+    const kingSquare = this.kings[this.turn].square;
+    const opponentColor = Game.oppositeColor[piece.color];
+
+    let isPinned = false;
+    let pinnedDirection;
+    let pinnedDirectionSquaresMap = {};
+
+    if (Game.isAlignedOrthogonally[piece.square][kingSquare] || Game.isAlignedDiagonally[piece.square][kingSquare]) {
+      const behindSquares = Game.behindSquares[piece.square][kingSquare];
+      const sliders = Game.isAlignedDiagonally[piece.square][kingSquare]
+        ? Game.diagonalSliders
+        : Game.orthogonalSliders;
+      let sliderBehind;
+
+      for (let i = 0; i < behindSquares.length; i++) {
+        const behindPiece = this.board[behindSquares[i]];
+
+        if (behindPiece) {
+          if (behindPiece.color === opponentColor && behindPiece.type in sliders) {
+            sliderBehind = behindPiece;
+          }
+
+          break;
+        }
+      }
+
+      if (sliderBehind) {
+        isPinned = true;
+
+        const middleSquares = Game.middleSquares[piece.square][kingSquare];
+
+        for (let i = 0; i < middleSquares.length; i++) {
+          if (this.board[middleSquares[i]]) {
+            isPinned = false;
+
+            break;
+          }
+        }
+
+        if (isPinned) {
+          pinnedDirection = Game.isAlignedDiagonally[piece.square][kingSquare]
+            ? PinnedDirection.DIAGONAL
+            : Game.squareRanks[piece.square] === Game.squareRanks[kingSquare]
+              ? PinnedDirection.HORIZONTAL
+              : PinnedDirection.VERTICAL;
+          pinnedDirectionSquaresMap = Game.behindAndMiddleSquaresMap[piece.square][kingSquare];
+        }
+      }
+    }
+
+    if (
+      isPinned
+      && (
+        piece.type === PieceType.KNIGHT
+        || (
+          pinnedDirection === PinnedDirection.DIAGONAL
+          && piece.type === PieceType.ROOK
+        )
+        || (
+          pinnedDirection === PinnedDirection.HORIZONTAL
+          && piece.type === PieceType.PAWN
+        )
+        || (
+          (pinnedDirection === PinnedDirection.HORIZONTAL || pinnedDirection === PinnedDirection.VERTICAL)
+          && piece.type === PieceType.BISHOP
+        )
+      )
+    ) {
+      return [];
+    }
+
     const possibleMoves = this.getPseudoLegalMoves(piece);
     const isPawn = piece.type === PieceType.PAWN;
-    const kingSquare = this.kings[this.turn].square;
-    const isNoCheckAndNotAlignedWithKing = !this.isCheck && !isKing && (
-      !Game.isAlignedOrthogonally[piece.square][kingSquare]
-      && !Game.isAlignedDiagonally[piece.square][kingSquare]
-    );
+    const isNoCheckAndNotPinned = !this.isCheck && !isKing && !isPinned;
 
-    if (isNoCheckAndNotAlignedWithKing && (!isPawn || !this.possibleEnPassant)) {
+    if (isNoCheckAndNotPinned && (!isPawn || !this.possibleEnPassant)) {
       return possibleMoves;
     }
 
     const legalMoves: number[] = [];
     const prevSquare = piece.square;
     const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
-    const isAlmostLegalPawnMove = isNoCheckAndNotAlignedWithKing && isPawn;
+    const isAlmostLegalPawnMove = isNoCheckAndNotPinned && isPawn;
 
     this.board[prevSquare] = null;
 
@@ -202,14 +272,24 @@ export default class Game extends Utils {
         }
       }
 
+      if (!isKing && (!isPawn || square !== this.possibleEnPassant)) {
+        if (!isPinned || square in pinnedDirectionSquaresMap) {
+          legalMoves.push(square);
+        }
+
+        continue;
+      }
+
       const capturedPiece = isPawn && square === this.possibleEnPassant
         ? enPassantCapturedPawn
         : this.board[square];
 
       if (capturedPiece) {
-        this.board[capturedPiece.square] = null;
+        const opponentPieces = this.pieces[opponentColor];
 
-        delete this.pieces[capturedPiece.color][capturedPiece.id];
+        (opponentPieces[capturedPiece.index] = opponentPieces[--this.pieceCounts[opponentColor]]).index = capturedPiece.index;
+
+        this.board[capturedPiece.square] = null;
       }
 
       this.board[square] = piece;
@@ -222,8 +302,12 @@ export default class Game extends Utils {
       this.board[square] = null;
 
       if (capturedPiece) {
+        const opponentPieces = this.pieces[opponentColor];
+
+        opponentPieces[capturedPiece.index].index = this.pieceCounts[opponentColor]++;
+        opponentPieces[capturedPiece.index] = capturedPiece;
+
         this.board[capturedPiece.square] = capturedPiece;
-        this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
       }
     }
 
@@ -345,10 +429,11 @@ export default class Game extends Utils {
 
   isInDoubleCheck(): boolean {
     const pieces = this.pieces[Game.oppositeColor[this.turn]];
+    const pieceCount = this.pieceCounts[Game.oppositeColor[this.turn]];
     let checkingPiecesCount = 0;
 
-    for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
 
       if (this.getAttacks(piece).includes(this.kings[this.turn].square)) {
         checkingPiecesCount++;
@@ -363,9 +448,7 @@ export default class Game extends Utils {
     const minPiecesColor = whiteHasMore
       ? Color.BLACK
       : Color.WHITE;
-    const maxPiecesColor = whiteHasMore
-      ? Color.WHITE
-      : Color.BLACK;
+    const maxPiecesColor = Game.oppositeColor[minPiecesColor];
     const maxPieceCount = this.pieceCounts[maxPiecesColor];
 
     // king vs king
@@ -374,46 +457,34 @@ export default class Game extends Utils {
     }
 
     const maxPieces = this.pieces[maxPiecesColor];
+    const minPieceCount = this.pieceCounts[minPiecesColor];
 
-    if (this.pieceCounts[minPiecesColor] === 1 && maxPieceCount === 2) {
-      for (const pieceId in maxPieces) {
-        if (maxPieces[pieceId].type === PieceType.KNIGHT || maxPieces[pieceId].type === PieceType.BISHOP) {
-          return true;
-        }
-      }
+    if (minPieceCount === 1 && maxPieceCount === 2) {
+      const notKing = maxPieces[0].type === PieceType.KING ? maxPieces[1] : maxPieces[0];
 
+      return notKing.type === PieceType.KNIGHT || notKing.type === PieceType.BISHOP;
+    }
+
+    if (this.bishopsCount !== this.pieceCounts[Color.WHITE] + this.pieceCounts[Color.BLACK] - 2) {
       return false;
     }
 
-    const minPieces = this.pieces[minPiecesColor];
-    let possibleBishopColor: number | null = null;
+    const possibleBishopColor = Game.colors[(maxPieces[0].type === PieceType.BISHOP ? maxPieces[0] : maxPieces[1]).square];
 
-    for (const pieceId in maxPieces) {
-      const piece = maxPieces[pieceId];
+    for (let i = 0; i < maxPieceCount; i++) {
+      const piece = maxPieces[i];
 
-      if (piece.type === PieceType.KING) {
-        continue;
-      }
-
-      if (piece.type !== PieceType.BISHOP) {
-        return false;
-      }
-
-      if (possibleBishopColor === null) {
-        possibleBishopColor = Game.colors[piece.square];
-      } else if (Game.colors[piece.square] !== possibleBishopColor) {
+      if (piece.type === PieceType.BISHOP && Game.colors[piece.square] !== possibleBishopColor) {
         return false;
       }
     }
 
-    for (const pieceId in minPieces) {
-      const piece = minPieces[pieceId];
+    const minPieces = this.pieces[minPiecesColor];
 
-      if (piece.type === PieceType.KING) {
-        continue;
-      }
+    for (let i = 0; i < minPieceCount; i++) {
+      const piece = minPieces[i];
 
-      if (piece.type !== PieceType.BISHOP || Game.colors[piece.square] !== possibleBishopColor) {
+      if (piece.type === PieceType.BISHOP && Game.colors[piece.square] !== possibleBishopColor) {
         return false;
       }
     }
@@ -423,9 +494,10 @@ export default class Game extends Utils {
 
   isNoMoves(): boolean {
     const pieces = this.pieces[this.turn];
+    const pieceCount = this.pieceCounts[this.turn];
 
-    for (const pieceId in pieces) {
-      if (this.getLegalMoves(pieces[pieceId]).length) {
+    for (let i = 0; i < pieceCount; i++) {
+      if (this.getLegalMoves(pieces[i]).length) {
         return false;
       }
     }
@@ -434,24 +506,24 @@ export default class Game extends Utils {
   }
 
   isSquareAttacked(square: number): boolean {
-    const pieces = this.pieces[Game.oppositeColor[this.turn]];
+    const opponentColor = Game.oppositeColor[this.turn];
+    const pieces = this.pieces[opponentColor];
+    const pieceCount = this.pieceCounts[opponentColor];
 
-    pieces: for (const pieceId in pieces) {
-      const piece = pieces[pieceId];
+    pieces: for (let i = 0; i < pieceCount; i++) {
+      const piece = pieces[i];
 
-      if (piece.type === PieceType.KING || piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
+      if (piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
         if (
           square in (
-            piece.type === PieceType.KING
-              ? Game.kingAttacksMap[piece.square]
-              : piece.type === PieceType.KNIGHT
-                ? Game.knightAttacksMap[piece.square]
-                : Game.pawnAttacksMap[piece.color][piece.square]
+            piece.type === PieceType.KNIGHT
+              ? Game.knightAttacksMap[piece.square]
+              : Game.pawnAttacksMap[piece.color][piece.square]
           )
         ) {
           return true;
         }
-      } else {
+      } else if (piece.type !== PieceType.KING) {
         if (piece.type === PieceType.ROOK && !Game.isAlignedOrthogonally[square][piece.square]) {
           continue;
         }
@@ -549,9 +621,10 @@ export default class Game extends Utils {
     }
 
     if (capturedPiece) {
-      delete this.pieces[capturedPiece.color][capturedPiece.id];
+      const opponentPieces = this.pieces[opponentColor];
 
-      this.pieceCounts[capturedPiece.color]--;
+      (opponentPieces[capturedPiece.index] = opponentPieces[--this.pieceCounts[opponentColor]]).index = capturedPiece.index;
+
       this.material[capturedPiece.color] -= Game.piecesWorth[capturedPiece.type];
       this.position ^= this.pieceKeys[capturedPiece.color][capturedPiece.type][capturedPiece.square];
 
@@ -561,6 +634,10 @@ export default class Game extends Utils {
 
       if (capturedPiece.type === PieceType.ROOK && capturedPiece.square in Game.rookCastlingPermissions) {
         this.possibleCastling &= ~Game.rookCastlingPermissions[capturedPiece.square];
+      }
+
+      if (capturedPiece.type === PieceType.BISHOP) {
+        this.bishopsCount--;
       }
     }
 
@@ -759,10 +836,17 @@ export default class Game extends Utils {
     changedPiece.square = changedPieceOldSquare;
 
     if (capturedPiece) {
-      this.pieces[capturedPiece.color][capturedPiece.id] = capturedPiece;
-      this.pieceCounts[capturedPiece.color]++;
+      const opponentPieces = this.pieces[capturedPiece.color];
+
+      opponentPieces[capturedPiece.index].index = this.pieceCounts[capturedPiece.color]++;
+      opponentPieces[capturedPiece.index] = capturedPiece;
+
       this.material[capturedPiece.color] += Game.piecesWorth[capturedPiece.type];
       this.board[capturedPiece.square] = capturedPiece;
+
+      if (capturedPiece.type === PieceType.BISHOP) {
+        this.bishopsCount++;
+      }
     }
 
     if (promotedPawn) {
@@ -799,17 +883,16 @@ export default class Game extends Utils {
   }
 
   setStartingData(fen: string) {
-    let id = 0;
     const [piecesString, turnString, castlingString, enPassantString, pliesWithoutCaptureOrPawnMoveString] = fen.split(' ');
     const addPiece = (color: Color, pieceType: PieceType, x: number, y: number) => {
-      const piece = {
-        id: id++,
+      const piece: Piece = {
+        index: this.pieces[color].length,
         color,
         type: pieceType,
         square: Game.squares[y][x]
       };
 
-      this.pieces[color][piece.id] = piece;
+      this.pieces[color].push(piece);
       this.board[piece.square] = piece;
       this.position ^= this.pieceKeys[piece.color][piece.type][piece.square];
       this.pieceCounts[color]++;
@@ -818,6 +901,10 @@ export default class Game extends Utils {
         this.kings[color] = piece;
       } else {
         this.material[color] += Game.piecesWorth[pieceType];
+      }
+
+      if (pieceType === PieceType.BISHOP) {
+        this.bishopsCount++;
       }
     };
 
