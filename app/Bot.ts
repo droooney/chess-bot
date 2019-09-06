@@ -10,14 +10,8 @@ interface PiecesAttacks {
   attacks: { [color in Color]: number[][]; }
 }
 
-interface VisitedPositionResult {
-  score: number | null;
-  depth: number;
-}
-
 export default class Bot extends Game {
   static SEARCH_DEPTH = 2 * 2;
-  static OPTIMAL_LINES_COUNT = 10;
   static OPTIMAL_MOVE_THRESHOLD = 50;
   static MATE_SCORE = 1e7;
 
@@ -38,7 +32,7 @@ export default class Bot extends Game {
   color: Color;
   debug: boolean;
   moveCount: number = 0;
-  visitedPositions: Map<bigint, VisitedPositionResult> = new Map();
+  evaluatedPositions: Map<bigint, number> = new Map();
   nodes: number = 0;
   evalTime: number = 0;
   evalColorTime: number = 0;
@@ -598,25 +592,20 @@ export default class Bot extends Game {
 
   executeNegamax(depth: number, alpha: number, beta: number): number | null {
     if (this.isDraw) {
-      this.visitedPositions.set(this.position, { score: 0, depth });
-
       return 0;
-    }
-
-    const currentResult = this.visitedPositions.get(this.position);
-
-    if (currentResult && currentResult.depth <= depth) {
-      return currentResult.score;
     }
 
     if (depth === Bot.SEARCH_DEPTH) {
       const timestamp = Date.now();
-      const score = this.eval(depth);
+      const currentScore = this.evaluatedPositions.get(this.position);
+      const score = currentScore === undefined ? this.eval(depth) : currentScore;
 
       this.nodes++;
       this.evalTime += Date.now() - timestamp;
 
-      this.visitedPositions.set(this.position, { score, depth });
+      if (currentScore === undefined) {
+        this.evaluatedPositions.set(this.position, score);
+      }
 
       return score;
     }
@@ -627,11 +616,7 @@ export default class Bot extends Game {
     let wereNewEvals = false;
 
     if (!legalMoves.length) {
-      const score = this.isCheck ? Bot.getMateScore(depth) : 0;
-
-      this.visitedPositions.set(this.position, { score, depth });
-
-      return score;
+      return this.isCheck ? Bot.getMateScore(depth) : 0;
     }
 
     legalMoves.sort(this.moveSorter);
@@ -641,10 +626,6 @@ export default class Bot extends Game {
     if (this.debug) {
       this.calculateLegalMovesTime += timestamp2 - timestamp;
       this.moveSortTime += timestamp3 - timestamp2;
-    }
-
-    if (!currentResult) {
-      this.visitedPositions.set(this.position, { score: null, depth });
     }
 
     for (let i = 0; i < legalMoves.length; i++) {
@@ -671,8 +652,6 @@ export default class Bot extends Game {
       const score = -scoreOrNull;
 
       if (score >= beta) {
-        this.visitedPositions.set(this.position, { score, depth });
-
         return beta;
       }
 
@@ -687,8 +666,6 @@ export default class Bot extends Game {
       return null;
     }
 
-    this.visitedPositions.set(this.position, { score: alpha, depth });
-
     return alpha;
   }
 
@@ -701,9 +678,9 @@ export default class Bot extends Game {
       return legalMoves[0];
     }
 
-    const optimalLines = new Array(Bot.OPTIMAL_LINES_COUNT).fill(0).map(() => ({ move: 0, score: -Infinity }));
+    const optimalMoves: { move: number; score: number; }[] = [];
 
-    this.visitedPositions.clear();
+    this.evaluatedPositions.clear();
 
     legalMoves
       .map((move) => {
@@ -722,13 +699,10 @@ export default class Bot extends Game {
       .forEach(({ move }) => {
         const moveObject = this.performMove(move);
 
-        const score = -this.executeNegamax(1, -Infinity, -(optimalLines[0].score - Bot.OPTIMAL_MOVE_THRESHOLD))!;
-        const index = optimalLines.findIndex(({ score: optimalScore }) => score > optimalScore);
+        const score = -this.executeNegamax(1, -Infinity, -(optimalMoves.length ? optimalMoves[0].score - Bot.OPTIMAL_MOVE_THRESHOLD : -Infinity))!;
+        const index = optimalMoves.findIndex(({ score: optimalScore }) => score > optimalScore);
 
-        if (index !== -1) {
-          optimalLines.splice(index, 0, { move, score });
-          optimalLines.pop();
-        }
+        optimalMoves.splice(index === -1 ? optimalMoves.length : index, 0, { move, score });
 
         this.revertMove(moveObject);
 
@@ -738,19 +712,18 @@ export default class Bot extends Game {
         };
       });
 
-    const threshold = Bot.isMateScore(optimalLines[0].score)
-      ? 0
+    const threshold = Bot.isMateScore(optimalMoves[0].score)
+      ? 0.5
       : Bot.OPTIMAL_MOVE_THRESHOLD;
 
-    for (let i = Bot.OPTIMAL_LINES_COUNT - 1; i > 0; i--) {
-      if (optimalLines[0].score - optimalLines[i].score >= threshold) {
-        optimalLines[i] = { move: 0, score: -Infinity };
+    for (let i = optimalMoves.length - 1; i > 0; i--) {
+      if (optimalMoves[0].score - optimalMoves[i].score >= threshold) {
+        optimalMoves.pop();
       } else {
         break;
       }
     }
 
-    const optimalMoves = optimalLines.filter(({ move }) => move);
     const randomIndex = Math.floor(Math.random() * optimalMoves.length);
     const selectedMove = optimalMoves[randomIndex];
 

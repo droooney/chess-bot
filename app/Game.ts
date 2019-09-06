@@ -524,17 +524,19 @@ export default class Game extends Utils {
     pieces: for (let i = 0; i < pieceCount; i++) {
       const piece = pieces[i];
 
-      if (piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
+      if (piece.type === PieceType.KING || piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
         if (
           square in (
-            piece.type === PieceType.KNIGHT
-              ? Game.knightAttacksMap[piece.square]
-              : Game.pawnAttacksMap[piece.color][piece.square]
+            piece.type === PieceType.KING
+              ? Game.kingAttacksMap[piece.square]
+              : piece.type === PieceType.KNIGHT
+                ? Game.knightAttacksMap[piece.square]
+                : Game.pawnAttacksMap[piece.color][piece.square]
           )
         ) {
           return true;
         }
-      } else if (piece.type !== PieceType.KING) {
+      } else {
         if (piece.type === PieceType.ROOK && !Game.isAlignedOrthogonally[square][piece.square]) {
           continue;
         }
