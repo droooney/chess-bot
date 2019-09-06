@@ -11,7 +11,7 @@ import {
   LichessGameState,
   LichessLobbyEvent
 } from './types';
-import Utils, { Color, Result } from './Utils';
+import Utils, { Color } from './Utils';
 
 export default class LichessBot {
   token: string;
@@ -160,7 +160,7 @@ export default class LichessBot {
       });
     }
 
-    if (bot.result && bot.result < Result.DRAW) {
+    if (bot.isDraw || bot.isNoMoves()) {
       return;
     }
 

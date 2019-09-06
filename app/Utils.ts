@@ -58,12 +58,6 @@ export enum Castling {
   BLACK_QUEEN_SIDE = 8
 }
 
-export enum Result {
-  WHITE,
-  BLACK,
-  DRAW
-}
-
 export enum PinnedDirection {
   DIAGONAL,
   HORIZONTAL,

@@ -7,8 +7,7 @@ import Utils, {
   Move,
   Piece,
   PieceType,
-  PinnedDirection,
-  Result
+  PinnedDirection
 } from './Utils';
 
 export default class Game extends Utils {
@@ -31,7 +30,7 @@ export default class Game extends Utils {
   };
 
   turn: Color = Color.WHITE;
-  result: Result | null = null;
+  isDraw: boolean = false;
   isCheck: boolean = false;
   isDoubleCheck: boolean = false;
   checkingPiece: Piece | null = null;
@@ -87,7 +86,7 @@ export default class Game extends Utils {
 
     for (let i = 0; i < pieceCount; i++) {
       const piece = pieces[i];
-      const legalMoves = this.getLegalMoves(piece);
+      const legalMoves = this.getLegalMoves(piece, false);
 
       for (let i = 0, l = legalMoves.length; i < l; i++) {
         const square = legalMoves[i];
@@ -156,7 +155,7 @@ export default class Game extends Utils {
     return null;
   }
 
-  getLegalMoves(piece: Piece): number[] {
+  getLegalMoves(piece: Piece, stopAfter1: boolean): number[] {
     const isKing = piece.type === PieceType.KING;
 
     if (this.isDoubleCheck && !isKing) {
@@ -255,6 +254,10 @@ export default class Game extends Utils {
       if (isAlmostLegalPawnMove && square !== this.possibleEnPassant) {
         legalMoves.push(square);
 
+        if (stopAfter1) {
+          break;
+        }
+
         continue;
       }
 
@@ -275,6 +278,10 @@ export default class Game extends Utils {
       if (!isKing && (!isPawn || square !== this.possibleEnPassant)) {
         if (!isPinned || square in pinnedDirectionSquaresMap) {
           legalMoves.push(square);
+
+          if (stopAfter1) {
+            break;
+          }
         }
 
         continue;
@@ -308,6 +315,10 @@ export default class Game extends Utils {
         opponentPieces[capturedPiece.index] = capturedPiece;
 
         this.board[capturedPiece.square] = capturedPiece;
+      }
+
+      if (stopAfter1 && legalMoves.length) {
+        break;
       }
     }
 
@@ -497,7 +508,7 @@ export default class Game extends Utils {
     const pieceCount = this.pieceCounts[this.turn];
 
     for (let i = 0; i < pieceCount; i++) {
-      if (this.getLegalMoves(pieces[i]).length) {
+      if (this.getLegalMoves(pieces[i], true).length) {
         return false;
       }
     }
@@ -774,7 +785,7 @@ export default class Game extends Utils {
       || this.positions.get(this.position)! >= 3
       || this.isInsufficientMaterial()
     ) {
-      this.result = Result.DRAW;
+      this.isDraw = true;
     }
 
     return {
@@ -879,7 +890,7 @@ export default class Game extends Utils {
     this.possibleCastling = prevPossibleCastling;
     this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
     this.turn = prevTurn;
-    this.result = null;
+    this.isDraw = false;
   }
 
   setStartingData(fen: string) {

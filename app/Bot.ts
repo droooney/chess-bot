@@ -1,7 +1,7 @@
 import 'colors';
 
 import Game from './Game';
-import { Color, Piece, PieceType, Result } from './Utils';
+import { Color, Piece, PieceType } from './Utils';
 
 type PawnFiles = { [file in number]: number; };
 
@@ -16,19 +16,26 @@ interface VisitedPositionResult {
 }
 
 export default class Bot extends Game {
-  static SEARCH_DEPTH = 2;
+  static SEARCH_DEPTH = 2 * 2;
   static OPTIMAL_LINES_COUNT = 10;
   static OPTIMAL_MOVE_THRESHOLD = 50;
   static MATE_SCORE = 1e7;
 
+  static getMateScore(depth: number): number {
+    return -(Bot.MATE_SCORE - depth);
+  }
+
   static getScore(score: number): string {
-    return Math.abs(score) > 1e6
-      ? `#${score < 0 ? '-' : ''}${Bot.MATE_SCORE - Math.abs(score) + 1}`
+    return Bot.isMateScore(score)
+      ? `#${score < 0 ? '-' : ''}${Math.ceil((Bot.MATE_SCORE - Math.abs(score)) / 2)}`
       : `${score / 1000}`;
   }
 
+  static isMateScore(score: number): boolean {
+    return Math.abs(score) > 1e6;
+  }
+
   color: Color;
-  opponentColor: Color;
   debug: boolean;
   moveCount: number = 0;
   visitedPositions: Map<bigint, VisitedPositionResult> = new Map();
@@ -50,21 +57,16 @@ export default class Bot extends Game {
     super(fen);
 
     this.color = color;
-    this.opponentColor = Bot.oppositeColor[color];
     this.debug = debug;
   }
 
   eval(depth: number): number {
     if (this.isCheck && this.isNoMoves()) {
-      return this.getFinishedGameScore(Bot.oppositeColor[this.turn] as 0 | 1, depth);
+      return Bot.getMateScore(depth);
     }
 
-    if (!this.isCheck && this.isNoMoves()) {
-      return this.getFinishedGameScore(Result.DRAW, depth);
-    }
-
-    if (this.result !== null) {
-      return this.getFinishedGameScore(this.result, depth);
+    if (this.isDraw || (!this.isCheck && this.isNoMoves())) {
+      return 0;
     }
 
     const timestamp = this.getTimestamp();
@@ -105,7 +107,7 @@ export default class Bot extends Game {
     );
     const timestamp2 = this.getTimestamp();
 
-    const score = this.evalColor(this.color, piecesAttacks, isEndgame) - this.evalColor(this.opponentColor, piecesAttacks, isEndgame);
+    const score = this.evalColor(this.turn, piecesAttacks, isEndgame) - this.evalColor(Game.oppositeColor[this.turn], piecesAttacks, isEndgame);
 
     if (this.debug) {
       this.calculateAttacksTime += timestamp2 - timestamp;
@@ -579,13 +581,11 @@ export default class Bot extends Game {
     return score + this.material[color] * 1000 + (bishopsCount >= 2 ? 500 : 0);
   }
 
-  executeMiniMax(depth: number, isSame: boolean, currentOptimalScore: number): number | null {
-    if (this.result !== null) {
-      const score = this.getFinishedGameScore(this.result, depth);
+  executeNegamax(depth: number, alpha: number, beta: number): number | null {
+    if (this.isDraw) {
+      this.visitedPositions.set(this.position, { score: 0, depth });
 
-      this.visitedPositions.set(this.position, { score, depth });
-
-      return score;
+      return 0;
     }
 
     const currentResult = this.visitedPositions.get(this.position);
@@ -610,7 +610,6 @@ export default class Bot extends Game {
     const pieces = this.pieces[turn];
     const pieceCount = this.pieceCounts[turn];
 
-    let bestScore = isSame ? -Infinity : Infinity;
     let wereLegalMoves = false;
     let wereNewEvals = false;
 
@@ -621,7 +620,7 @@ export default class Bot extends Game {
     for (let i = 0; i < pieceCount; i++) {
       const piece = pieces[i];
       const timestamp = this.getTimestamp();
-      const legalMoves = this.getLegalMoves(piece);
+      const legalMoves = this.getLegalMoves(piece, false);
 
       if (this.debug) {
         this.calculateLegalMovesTime += this.getTimestamp() - timestamp;
@@ -641,7 +640,7 @@ export default class Bot extends Game {
         const moveObject = this.performMove(move);
         const timestamp2 = this.getTimestamp();
 
-        const score = this.executeMiniMax(isSame ? depth : depth + 1, !isSame, bestScore);
+        const scoreOrNull = this.executeNegamax(depth + 1, -beta, -alpha);
         const timestamp3 = this.getTimestamp();
 
         this.revertMove(moveObject);
@@ -651,31 +650,28 @@ export default class Bot extends Game {
           this.revertMoveTime += this.getTimestamp() - timestamp3;
         }
 
-        if (score === null) {
+        if (scoreOrNull === null) {
           continue;
         }
 
-        if (isSame ? score >= currentOptimalScore : score <= currentOptimalScore) {
-          const score = isSame ? Infinity : -Infinity;
+        const score = -scoreOrNull;
 
-          this.visitedPositions.set(this.position, { score, depth });
+        if (score >= beta) {
+          this.visitedPositions.set(this.position, { score: beta, depth });
 
-          return score;
+          return beta;
+        }
+
+        if (score > alpha) {
+          alpha = score;
         }
 
         wereNewEvals = true;
-        bestScore = isSame
-          ? bestScore > score
-            ? bestScore
-            : score
-          : bestScore < score
-            ? bestScore
-            : score;
       }
     }
 
     if (!wereLegalMoves) {
-      const score = this.getFinishedGameScore(this.isCheck ? Bot.oppositeColor[this.turn] as 0 | 1 : Result.DRAW, depth);
+      const score = this.isCheck ? Bot.getMateScore(depth) : 0;
 
       this.visitedPositions.set(this.position, { score, depth });
 
@@ -686,17 +682,9 @@ export default class Bot extends Game {
       return null;
     }
 
-    this.visitedPositions.set(this.position, { score: bestScore, depth });
+    this.visitedPositions.set(this.position, { score: alpha, depth });
 
-    return bestScore;
-  }
-
-  getFinishedGameScore(result: Result, depth: number): number {
-    return result === Result.DRAW
-      ? 0
-      : result === this.color as 0 | 1
-        ? Bot.MATE_SCORE - depth
-        : -(Bot.MATE_SCORE - depth + 1)
+    return alpha;
   }
 
   getOptimalMove(): number | undefined {
@@ -716,7 +704,7 @@ export default class Bot extends Game {
       .map((move) => {
         const moveObject = this.performMove(move);
 
-        const score = this.eval(0);
+        const score = -this.eval(1);
 
         this.revertMove(moveObject);
 
@@ -729,7 +717,7 @@ export default class Bot extends Game {
       .forEach(({ move }) => {
         const moveObject = this.performMove(move);
 
-        const score = this.executeMiniMax(0, false, optimalLines[0].score - Bot.OPTIMAL_MOVE_THRESHOLD)!;
+        const score = -this.executeNegamax(1, -Infinity, -(optimalLines[0].score - Bot.OPTIMAL_MOVE_THRESHOLD))!;
         const index = optimalLines.findIndex(({ score: optimalScore }) => score > optimalScore);
 
         if (index !== -1) {
@@ -750,7 +738,7 @@ export default class Bot extends Game {
       : Bot.OPTIMAL_MOVE_THRESHOLD;
 
     for (let i = Bot.OPTIMAL_LINES_COUNT - 1; i > 0; i--) {
-      if (optimalLines[0].score - optimalLines[i].score > threshold) {
+      if (optimalLines[0].score - optimalLines[i].score >= threshold) {
         optimalLines[i] = { move: 0, score: -Infinity };
       } else {
         break;
