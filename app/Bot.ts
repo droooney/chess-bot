@@ -39,19 +39,22 @@ export default class Bot extends Game {
   debug: boolean;
   moveCount: number = 0;
   visitedPositions: Map<bigint, VisitedPositionResult> = new Map();
-  evals: number = 0;
-  evalTime: bigint = 0n;
-  evalColorTime: bigint = 0n;
-  evalDoubledPawnsTime: bigint = 0n;
-  evalKingSafetyTime: bigint = 0n;
-  evalPassedPawnsTime: bigint = 0n;
-  evalPawnIslandsTime: bigint = 0n;
-  evalPiecesTime: bigint = 0n;
-  calculateAttacksTime: bigint = 0n;
-  calculateLegalMovesTime: bigint = 0n;
-  calculateRestTime: bigint = 0n;
-  performMoveTime: bigint = 0n;
-  revertMoveTime: bigint = 0n;
+  nodes: number = 0;
+  evalTime: number = 0;
+  evalColorTime: number = 0;
+  evalDoubledPawnsTime: number = 0;
+  evalKingSafetyTime: number = 0;
+  evalPassedPawnsTime: number = 0;
+  evalPawnIslandsTime: number = 0;
+  evalPiecesTime: number = 0;
+  calculateAttacksTime: number = 0;
+  calculateLegalMovesTime: number = 0;
+  calculateRestTime: number = 0;
+  performMoveTime: number = 0;
+  revertMoveTime: number = 0;
+  moveSortTime: number = 0;
+  mateTime: number = 0;
+  drawTime: number = 0;
 
   constructor(fen: string, color: Color, debug: boolean) {
     super(fen);
@@ -61,15 +64,27 @@ export default class Bot extends Game {
   }
 
   eval(depth: number): number {
+    const timestamp = this.getTimestamp();
+
     if (this.isCheck && this.isNoMoves()) {
+      this.mateTime += this.getTimestamp() - timestamp;
+
       return Bot.getMateScore(depth);
     }
 
+    const timestamp2 = this.getTimestamp();
+
+    this.mateTime += timestamp2 - timestamp;
+
     if (this.isDraw || (!this.isCheck && this.isNoMoves())) {
+      this.drawTime += this.getTimestamp() - timestamp2;
+
       return 0;
     }
 
-    const timestamp = this.getTimestamp();
+    const timestamp3 = this.getTimestamp();
+
+    this.drawTime += timestamp3 - timestamp2;
 
     const piecesAttacks: PiecesAttacks = {
       squareAttacks: [{}, {}],
@@ -105,13 +120,13 @@ export default class Bot extends Game {
       pawnCount < 5
       || this.pieceCounts[Color.WHITE] + this.pieceCounts[Color.BLACK] - pawnCount < 9
     );
-    const timestamp2 = this.getTimestamp();
+    const timestamp4 = this.getTimestamp();
 
     const score = this.evalColor(this.turn, piecesAttacks, isEndgame) - this.evalColor(Game.oppositeColor[this.turn], piecesAttacks, isEndgame);
 
     if (this.debug) {
-      this.calculateAttacksTime += timestamp2 - timestamp;
-      this.evalColorTime += this.getTimestamp() - timestamp2;
+      this.calculateAttacksTime += timestamp4 - timestamp3;
+      this.evalColorTime += this.getTimestamp() - timestamp4;
     }
 
     return score;
@@ -119,7 +134,6 @@ export default class Bot extends Game {
 
   evalColor(color: Color, piecesAttacks: PiecesAttacks, isEndgame: boolean): number {
     const timestamp = this.getTimestamp();
-    const opponentColor = Bot.oppositeColor[color];
 
     const pawns = this.getPawns(color);
     const pawnFiles: PawnFiles = {};
@@ -137,13 +151,13 @@ export default class Bot extends Game {
       console.log(color, (
         this.evalDoubledPawns(pawnFiles)
         + this.evalKingSafety(color, isEndgame)
-        + this.evalPassedPawns(color, opponentColor, pawns, isEndgame)
+        + this.evalPassedPawns(color, pawns, isEndgame)
         + this.evalPawnIslands(pawnFiles)
         + this.evalPieces(color, pawnFiles, piecesAttacks, isEndgame)
       ), {
         evalDoubledPawns: this.evalDoubledPawns(pawnFiles),
         evalKingSafety: this.evalKingSafety(color, isEndgame),
-        evalPassedPawns: this.evalPassedPawns(color, opponentColor, pawns, isEndgame),
+        evalPassedPawns: this.evalPassedPawns(color, pawns, isEndgame),
         evalPawnIslands: this.evalPawnIslands(pawnFiles),
         evalPieces: this.evalPieces(color, pawnFiles, piecesAttacks, isEndgame)
       });
@@ -156,7 +170,7 @@ export default class Bot extends Game {
     const evalKingSafety = this.evalKingSafety(color, isEndgame);
     const timestamp4 = this.getTimestamp();
 
-    const evalPassedPawns = this.evalPassedPawns(color, opponentColor, pawns, isEndgame);
+    const evalPassedPawns = this.evalPassedPawns(color, pawns, isEndgame);
     const timestamp5 = this.getTimestamp();
 
     const evalPawnIslands = this.evalPawnIslands(pawnFiles);
@@ -259,7 +273,8 @@ export default class Bot extends Game {
     return score;
   }
 
-  evalPassedPawns(color: Color, opponentColor: Color, pawns: Piece[], isEndgame: boolean): number {
+  evalPassedPawns(color: Color, pawns: Piece[], isEndgame: boolean): number {
+    const opponentColor = Bot.oppositeColor[color];
     const opponentPawns = this.getPawns(opponentColor);
     const passedPawnFiles: { [file in number]: number; } = {};
     const isWhite = color === Color.WHITE;
@@ -595,87 +610,77 @@ export default class Bot extends Game {
     }
 
     if (depth === Bot.SEARCH_DEPTH) {
-      const timestamp = process.hrtime.bigint();
+      const timestamp = Date.now();
       const score = this.eval(depth);
 
-      this.evals++;
-      this.evalTime += process.hrtime.bigint() - timestamp;
+      this.nodes++;
+      this.evalTime += Date.now() - timestamp;
 
       this.visitedPositions.set(this.position, { score, depth });
 
       return score;
     }
 
-    const turn = this.turn;
-    const pieces = this.pieces[turn];
-    const pieceCount = this.pieceCounts[turn];
-
-    let wereLegalMoves = false;
+    const timestamp = this.getTimestamp();
+    const legalMoves = this.getAllLegalMoves();
+    const timestamp2 = this.getTimestamp();
     let wereNewEvals = false;
 
-    if (!currentResult) {
-      this.visitedPositions.set(this.position, { score: null, depth });
-    }
-
-    for (let i = 0; i < pieceCount; i++) {
-      const piece = pieces[i];
-      const timestamp = this.getTimestamp();
-      const legalMoves = this.getLegalMoves(piece, false);
-
-      if (this.debug) {
-        this.calculateLegalMovesTime += this.getTimestamp() - timestamp;
-      }
-
-      for (let i = 0, l = legalMoves.length; i < l; i++) {
-        wereLegalMoves = true;
-
-        const square = legalMoves[i];
-        let move = piece.square << 9 | square << 3;
-
-        if (piece.type === PieceType.PAWN && square in Bot.promotionSquares[turn]) {
-          move |= PieceType.QUEEN;
-        }
-
-        const timestamp = this.getTimestamp();
-        const moveObject = this.performMove(move);
-        const timestamp2 = this.getTimestamp();
-
-        const scoreOrNull = this.executeNegamax(depth + 1, -beta, -alpha);
-        const timestamp3 = this.getTimestamp();
-
-        this.revertMove(moveObject);
-
-        if (this.debug) {
-          this.performMoveTime += timestamp2 - timestamp;
-          this.revertMoveTime += this.getTimestamp() - timestamp3;
-        }
-
-        if (scoreOrNull === null) {
-          continue;
-        }
-
-        const score = -scoreOrNull;
-
-        if (score >= beta) {
-          this.visitedPositions.set(this.position, { score: beta, depth });
-
-          return beta;
-        }
-
-        if (score > alpha) {
-          alpha = score;
-        }
-
-        wereNewEvals = true;
-      }
-    }
-
-    if (!wereLegalMoves) {
+    if (!legalMoves.length) {
       const score = this.isCheck ? Bot.getMateScore(depth) : 0;
 
       this.visitedPositions.set(this.position, { score, depth });
 
       return score;
+    }
+
+    legalMoves.sort(this.moveSorter);
+
+    const timestamp3 = this.getTimestamp();
+
+    if (this.debug) {
+      this.calculateLegalMovesTime += timestamp2 - timestamp;
+      this.moveSortTime += timestamp3 - timestamp2;
+    }
+
+    if (!currentResult) {
+      this.visitedPositions.set(this.position, { score: null, depth });
+    }
+
+    for (let i = 0; i < legalMoves.length; i++) {
+      const move = legalMoves[i];
+
+      const timestamp = this.getTimestamp();
+      const moveObject = this.performMove(move);
+      const timestamp2 = this.getTimestamp();
+
+      const scoreOrNull = this.executeNegamax(depth + 1, -beta, -alpha);
+      const timestamp3 = this.getTimestamp();
+
+      this.revertMove(moveObject);
+
+      if (this.debug) {
+        this.performMoveTime += timestamp2 - timestamp;
+        this.revertMoveTime += this.getTimestamp() - timestamp3;
+      }
+
+      if (scoreOrNull === null) {
+        continue;
+      }
+
+      const score = -scoreOrNull;
+
+      if (score >= beta) {
+        this.visitedPositions.set(this.position, { score, depth });
+
+        return beta;
+      }
+
+      if (score > alpha) {
+        alpha = score;
+      }
+
+      wereNewEvals = true;
     }
 
     if (!wereNewEvals) {
@@ -733,7 +738,7 @@ export default class Bot extends Game {
         };
       });
 
-    const threshold = Math.abs(optimalLines[0].score) > 1e6
+    const threshold = Bot.isMateScore(optimalLines[0].score)
       ? 0
       : Bot.OPTIMAL_MOVE_THRESHOLD;
 
@@ -775,8 +780,8 @@ export default class Bot extends Game {
     return pawns;
   }
 
-  getTimestamp(): bigint {
-    return this.debug ? process.hrtime.bigint() : 0n;
+  getTimestamp(): number {
+    return this.debug ? Date.now() : 0;
   }
 
   makeMove(): number | undefined {
@@ -784,50 +789,70 @@ export default class Bot extends Game {
       return;
     }
 
-    this.evals = 0;
-    this.evalTime = 0n;
-    this.evalColorTime = 0n;
-    this.evalDoubledPawnsTime = 0n;
-    this.evalKingSafetyTime = 0n;
-    this.evalPassedPawnsTime = 0n;
-    this.evalPawnIslandsTime = 0n;
-    this.evalPiecesTime = 0n;
-    this.calculateAttacksTime = 0n;
-    this.calculateLegalMovesTime = 0n;
-    this.calculateRestTime = 0n;
-    this.performMoveTime = 0n;
-    this.revertMoveTime = 0n;
+    this.nodes = 0;
+    this.evalTime = 0;
+    this.evalColorTime = 0;
+    this.evalDoubledPawnsTime = 0;
+    this.evalKingSafetyTime = 0;
+    this.evalPassedPawnsTime = 0;
+    this.evalPawnIslandsTime = 0;
+    this.evalPiecesTime = 0;
+    this.calculateAttacksTime = 0;
+    this.calculateLegalMovesTime = 0;
+    this.calculateRestTime = 0;
+    this.performMoveTime = 0;
+    this.revertMoveTime = 0;
+    this.moveSortTime = 0;
+    this.mateTime = 0;
+    this.drawTime = 0;
 
-    const timestamp = process.hrtime.bigint();
+    const timestamp = Date.now();
     const move = this.getOptimalMove();
-    const moveTook = Number(process.hrtime.bigint() - timestamp) / 1e6;
-    const evalTook = Number(this.evalTime) / 1e6;
+    const moveTook = Date.now() - timestamp;
 
     console.log(`move took ${`${moveTook}`.red.bold} ms`);
-    console.log(`eval took ${`${evalTook}`.red.bold} ms`);
-    console.log(`rest took ${`${moveTook - evalTook}`.red.bold} ms`);
+    console.log(`eval took ${`${this.evalTime}`.red.bold} ms`);
+    console.log(`rest took ${`${moveTook - this.evalTime}`.red.bold} ms`);
 
     if (this.debug) {
-      console.log(`evalColor took ${Number(this.evalColorTime) / 1e6} ms`);
-      console.log(`evalDoubledPawns took ${Number(this.evalDoubledPawnsTime) / 1e6} ms`);
-      console.log(`evalKingSafety took ${Number(this.evalKingSafetyTime) / 1e6} ms`);
-      console.log(`evalPassedPawns took ${Number(this.evalPassedPawnsTime) / 1e6} ms`);
-      console.log(`evalPawnIslands took ${Number(this.evalPawnIslandsTime) / 1e6} ms`);
-      console.log(`evalPiecesTime took ${Number(this.evalPiecesTime) / 1e6} ms`);
-      console.log(`calculateAttacks took ${Number(this.calculateAttacksTime) / 1e6} ms`);
-      console.log(`calculateLegalMoves took ${Number(this.calculateLegalMovesTime) / 1e6} ms`);
-      console.log(`calculateRest took ${Number(this.calculateRestTime) / 1e6} ms`);
-      console.log(`performMove took ${Number(this.performMoveTime) / 1e6} ms`);
-      console.log(`revertMove took ${Number(this.revertMoveTime) / 1e6} ms`);
+      console.log(`evalColor took ${this.evalColorTime} ms`);
+      console.log(`evalDoubledPawns took ${this.evalDoubledPawnsTime} ms`);
+      console.log(`evalKingSafety took ${this.evalKingSafetyTime} ms`);
+      console.log(`evalPassedPawns took ${this.evalPassedPawnsTime} ms`);
+      console.log(`evalPawnIslands took ${this.evalPawnIslandsTime} ms`);
+      console.log(`evalPiecesTime took ${this.evalPiecesTime} ms`);
+      console.log(`calculateAttacks took ${this.calculateAttacksTime} ms`);
+      console.log(`calculateLegalMoves took ${this.calculateLegalMovesTime} ms`);
+      console.log(`calculateRest took ${this.calculateRestTime} ms`);
+      console.log(`performMove took ${this.performMoveTime} ms`);
+      console.log(`revertMove took ${this.revertMoveTime} ms`);
+      console.log(`moveSort took ${this.moveSortTime} ms`);
+      console.log(`mate took ${this.mateTime} ms`);
+      console.log(`draw took ${this.drawTime} ms`);
     }
 
-    console.log(`evals: ${`${this.evals}`.blue.bold}, took ${`${evalTook}`.red.bold} ms`);
-    console.log(`performance: ${`${+(this.evals / moveTook).toFixed(3)}`.green.bold} kn/s`);
+    console.log(`nodes: ${`${this.nodes}`.blue.bold}`);
+    console.log(`performance: ${`${+(this.nodes / moveTook).toFixed(3)}`.green.bold} kn/s`);
     console.log('-'.repeat(80).bold);
 
     // return undefined;
     return move;
   }
+
+  moveSorter = (move1: number, move2: number): number => {
+    const to1Piece = this.board[move1 >> 3 & 63];
+    const to2Piece = this.board[move2 >> 3 & 63];
+
+    if (!to1Piece) {
+      return to2Piece ? 1 : 0;
+    }
+
+    if (!to2Piece) {
+      return -1;
+    }
+
+    return to1Piece.type - to2Piece.type;
+  };
 
   pieceSorter = (type1: PieceType, type2: PieceType): number => {
     return type1 - type2;
