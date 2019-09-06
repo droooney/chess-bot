@@ -24,7 +24,8 @@ export interface Move {
   wasCheck: boolean;
   wasDoubleCheck: boolean;
   prevCheckingPiece: Piece | null;
-  prevPosition: bigint;
+  prevPositionKey: bigint;
+  prevPawnKey: bigint;
   prevPossibleEnPassant: number | null;
   prevPossibleCastling: number;
   prevPliesWithoutCaptureOrPawnMove: number;

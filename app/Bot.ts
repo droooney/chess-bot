@@ -3,11 +3,11 @@ import 'colors';
 import Game from './Game';
 import { Color, Piece, PieceType } from './Utils';
 
-type PawnFiles = { [file in number]: number; };
-
-interface PiecesAttacks {
+interface PositionInfo {
   squareAttacks: { [color in Color]: { [square in number]: PieceType[]; }; };
-  attacks: { [color in Color]: number[][]; }
+  attacks: { [color in Color]: number[][]; };
+  pawns: { [color in Color]: Piece[]; };
+  pawnFiles: { [color in Color]: { [file in number]: { min: number; max: number; }; }; };
 }
 
 export default class Bot extends Game {
@@ -33,17 +33,14 @@ export default class Bot extends Game {
   debug: boolean;
   moveCount: number = 0;
   evaluatedPositions: Map<bigint, number> = new Map();
+  evaluatedPawnPositions: { [color in Color]: Map<bigint, number>; } = [new Map(), new Map()];
   nodes: number = 0;
   evalTime: number = 0;
-  evalColorTime: number = 0;
-  evalDoubledPawnsTime: number = 0;
   evalKingSafetyTime: number = 0;
-  evalPassedPawnsTime: number = 0;
-  evalPawnIslandsTime: number = 0;
+  evalPawnsTime: number = 0;
   evalPiecesTime: number = 0;
-  calculateAttacksTime: number = 0;
+  calculatePositionInfoTime: number = 0;
   calculateLegalMovesTime: number = 0;
-  calculateRestTime: number = 0;
   performMoveTime: number = 0;
   revertMoveTime: number = 0;
   moveSortTime: number = 0;
@@ -80,9 +77,13 @@ export default class Bot extends Game {
 
     this.drawTime += timestamp3 - timestamp2;
 
-    const piecesAttacks: PiecesAttacks = {
+    const currentPawnScore = this.evaluatedPawnPositions[this.turn].get(this.pawnKey);
+    const noPawnScore = currentPawnScore === undefined;
+    const positionInfo: PositionInfo = {
       squareAttacks: [{}, {}],
-      attacks: [[], []]
+      attacks: [[], []],
+      pawns: [[], []],
+      pawnFiles: [{}, {}]
     };
     let pawnCount = 0;
 
@@ -94,9 +95,27 @@ export default class Bot extends Game {
         const piece = pieces[i];
         const attacks = this.getAttacks(piece);
 
-        piecesAttacks.attacks[color].push(attacks);
+        positionInfo.attacks[color].push(attacks);
 
         if (piece.type === PieceType.PAWN) {
+          const rank = Bot.squareRanks[piece.square];
+          const file = Bot.squareFiles[piece.square];
+
+          if (noPawnScore) {
+            const currentFileInfo = positionInfo.pawnFiles[color][file];
+
+            if (currentFileInfo) {
+              currentFileInfo.max = Math.max(rank, currentFileInfo.max);
+              currentFileInfo.min = Math.max(rank, currentFileInfo.min);
+            } else {
+              positionInfo.pawnFiles[color][file] = { max: rank, min: rank };
+            }
+
+            positionInfo.pawns[color].push(piece);
+          } else {
+            positionInfo.pawnFiles[color][file] = { max: rank, min: rank };
+          }
+
           pawnCount++;
         }
 
@@ -104,7 +123,7 @@ export default class Bot extends Game {
           const square = attacks[i];
 
           if (this.board[square]) {
-            (piecesAttacks.squareAttacks[color][square] = piecesAttacks.squareAttacks[color][square] || []).push(piece.type);
+            (positionInfo.squareAttacks[color][square] = positionInfo.squareAttacks[color][square] || []).push(piece.type);
           }
         }
       }
@@ -115,85 +134,36 @@ export default class Bot extends Game {
       || this.pieceCounts[Color.WHITE] + this.pieceCounts[Color.BLACK] - pawnCount < 9
     );
     const timestamp4 = this.getTimestamp();
+    const pawnsScore = noPawnScore
+      ? this.evalPawns(this.turn, positionInfo) - this.evalPawns(Game.oppositeColor[this.turn], positionInfo)
+      : currentPawnScore!;
 
-    const score = this.evalColor(this.turn, piecesAttacks, isEndgame) - this.evalColor(Game.oppositeColor[this.turn], piecesAttacks, isEndgame);
-
-    if (this.debug) {
-      this.calculateAttacksTime += timestamp4 - timestamp3;
-      this.evalColorTime += this.getTimestamp() - timestamp4;
+    if (noPawnScore) {
+      this.evaluatedPawnPositions[this.turn].set(this.pawnKey, pawnsScore);
     }
 
-    return score;
+    if (this.debug) {
+      this.calculatePositionInfoTime += timestamp4 - timestamp3;
+      this.evalPawnsTime += this.getTimestamp() - timestamp4;
+    }
+
+    return pawnsScore + this.evalColor(this.turn, positionInfo, isEndgame) - this.evalColor(Game.oppositeColor[this.turn], positionInfo, isEndgame);
   }
 
-  evalColor(color: Color, piecesAttacks: PiecesAttacks, isEndgame: boolean): number {
+  evalColor(color: Color, positionInfo: PositionInfo, isEndgame: boolean): number {
     const timestamp = this.getTimestamp();
 
-    const pawns = this.getPawns(color);
-    const pawnFiles: PawnFiles = {};
-
-    for (let i = 0, l = pawns.length; i < l; i++) {
-      const file = Bot.squareFiles[pawns[i].square];
-
-      pawnFiles[file] = pawnFiles[file] + 1 || 1;
-    }
-
+    const kingSafetyScore = this.evalKingSafety(color, isEndgame);
     const timestamp2 = this.getTimestamp();
 
-    /*
-    if (this.moves.map(Game.moveToUci).join(' ') === 'g2h3 d5e4') {
-      console.log(color, (
-        this.evalDoubledPawns(pawnFiles)
-        + this.evalKingSafety(color, isEndgame)
-        + this.evalPassedPawns(color, pawns, isEndgame)
-        + this.evalPawnIslands(pawnFiles)
-        + this.evalPieces(color, pawnFiles, piecesAttacks, isEndgame)
-      ), {
-        evalDoubledPawns: this.evalDoubledPawns(pawnFiles),
-        evalKingSafety: this.evalKingSafety(color, isEndgame),
-        evalPassedPawns: this.evalPassedPawns(color, pawns, isEndgame),
-        evalPawnIslands: this.evalPawnIslands(pawnFiles),
-        evalPieces: this.evalPieces(color, pawnFiles, piecesAttacks, isEndgame)
-      });
-    }
-    */
-
-    const evalDoubledPawns = this.evalDoubledPawns(pawnFiles);
-    const timestamp3 = this.getTimestamp();
-
-    const evalKingSafety = this.evalKingSafety(color, isEndgame);
-    const timestamp4 = this.getTimestamp();
-
-    const evalPassedPawns = this.evalPassedPawns(color, pawns, isEndgame);
-    const timestamp5 = this.getTimestamp();
-
-    const evalPawnIslands = this.evalPawnIslands(pawnFiles);
-    const timestamp6 = this.getTimestamp();
-
-    const evalPieces = this.evalPieces(color, pawnFiles, piecesAttacks, isEndgame);
+    const piecesScore = this.evalPieces(color, positionInfo, isEndgame);
 
     if (this.debug) {
-      this.calculateRestTime += timestamp2 - timestamp;
-      this.evalDoubledPawnsTime += timestamp3 - timestamp2;
-      this.evalKingSafetyTime += timestamp4 - timestamp3;
-      this.evalPassedPawnsTime += timestamp5 - timestamp4;
-      this.evalPawnIslandsTime += timestamp6 - timestamp5;
-      this.evalPiecesTime += this.getTimestamp() - timestamp6;
+      this.evalKingSafetyTime += timestamp2 - timestamp;
+      this.evalPiecesTime += this.getTimestamp() - timestamp2;
     }
 
-    return evalDoubledPawns + evalKingSafety + evalPassedPawns + evalPawnIslands + evalPieces;
-  }
-
-  evalDoubledPawns(pawnFiles: PawnFiles): number {
-    let score = 0;
-
-    for (const file in pawnFiles) {
-      if (pawnFiles[file] > 1) {
-        score -= 300;
-      }
-    }
-
-    return score;
+    return kingSafetyScore + piecesScore;
   }
 
   evalKingSafety(color: Color, isEndgame: boolean): number {
@@ -267,138 +237,69 @@ export default class Bot extends Game {
     return score;
   }
 
-  evalPassedPawns(color: Color, pawns: Piece[], isEndgame: boolean): number {
-    const opponentColor = Bot.oppositeColor[color];
-    const opponentPawns = this.getPawns(opponentColor);
-    const passedPawnFiles: { [file in number]: number; } = {};
+  evalPawns(color: Color, positionInfo: PositionInfo): number {
     const isWhite = color === Color.WHITE;
-    let passedPawnCount = 0;
-
-    pawns: for (let i = 0, l = pawns.length; i < l; i++) {
-      const pawn = pawns[i];
-      const file = Bot.squareFiles[pawn.square];
-      const rank = Bot.squareRanks[pawn.square];
-
-      if (file in passedPawnFiles) {
-        passedPawnFiles[file] = isWhite
-          ? Math.max(passedPawnFiles[file], rank)
-          : Math.min(passedPawnFiles[file], rank);
-
-        continue;
-      }
-
-      for (let i = 0, l = opponentPawns.length; i < l; i++) {
-        const opponentPawn = opponentPawns[i];
-        const opponentFile = Bot.squareFiles[opponentPawn.square];
-        const opponentRank = Bot.squareRanks[opponentPawn.square];
-
-        if (
-          opponentFile >= file - 1
-          && opponentFile <= file + 1
-          && (isWhite ? opponentRank > rank : opponentRank < rank)
-        ) {
-          continue pawns;
-        }
-      }
-
-      passedPawnFiles[file] = rank;
-      passedPawnCount++;
-    }
-
-    let score = passedPawnCount * 500;
-
-    for (const file in passedPawnFiles) {
-      const rank = passedPawnFiles[file];
-      const isProtected = +file + 1 in passedPawnFiles || +file - 1 in passedPawnFiles;
-      const isProtectedRightNow = isProtected && (
-        passedPawnFiles[+file + 1] === rank + Bot.directions.DOWN[color]
-        || passedPawnFiles[+file - 1] === rank + Bot.directions.DOWN[color]
-      );
-
-      score += (
-        isProtectedRightNow
-          ? (
-            rank === Bot.ranks.RANK_7[color]
-              ? 2500
-              : rank === Bot.ranks.RANK_6[color]
-                ? 1500
-                : rank === Bot.ranks.RANK_5[color]
-                  ? 700
-                  : 300
-          )
-          : isProtected
-            ? (
-              rank === Bot.ranks.RANK_7[color]
-                ? 1200
-                : rank === Bot.ranks.RANK_6[color]
-                  ? 600
-                  : rank === Bot.ranks.RANK_5[color]
-                    ? 250
-                    : 100
-            )
-            : 0
-      ) + (
-        isEndgame
-          ? (
-            rank === Bot.ranks.RANK_7[color]
-              ? 1000
-              : rank === Bot.ranks.RANK_6[color]
-                ? 500
-                : rank === Bot.ranks.RANK_5[color]
-                  ? 250
-                  : 0
-          )
-          : (
-            rank === Bot.ranks.RANK_7[color]
-              ? 500
-              : rank === Bot.ranks.RANK_6[color]
-                ? 200
-                : 0
-          )
-      );
-    }
-
-    return score;
-  }
-
-  evalPawnIslands(pawnFiles: PawnFiles): number {
-    let state: 'island' | 'no-island' | null = null;
+    const pawns = positionInfo.pawns[color];
+    const pawnFiles = positionInfo.pawnFiles[color];
+    const opponentPawnFiles = positionInfo.pawnFiles[Bot.oppositeColor[color]];
+    let score = 0;
+    let islandState: 0 | 1 = 0;
     let islandsCount = 0;
 
     for (let file = 0; file < 8; file++) {
-      const arePawnsOnFile = file in pawnFiles;
+      const fileInfo = pawnFiles[file];
 
-      if (arePawnsOnFile) {
-        if (state !== 'island') {
+      if (fileInfo) {
+        if (fileInfo.max !== fileInfo.min) {
+          score -= 300;
+        }
+
+        if (!islandState) {
           islandsCount++;
         }
 
-        state = 'island';
+        islandState = 1;
       } else {
-        state = state ? 'no-island' : null;
+        islandState = 0;
       }
     }
 
-    return (islandsCount - 1) * -200;
+    for (let i = 0; i < pawns.length; i++) {
+      const pawn = pawns[i];
+      const file = Bot.squareFiles[pawn.square];
+      const rank = Bot.squareRanks[pawn.square];
+      const leftInfo = opponentPawnFiles[file - 1];
+      const fileInfo = opponentPawnFiles[file];
+      const rightInfo = opponentPawnFiles[file + 1];
+
+      if (
+        (!leftInfo || (isWhite ? leftInfo.max <= rank : leftInfo.min >= rank))
+        && (!fileInfo || (isWhite ? fileInfo.max <= rank : fileInfo.min >= rank))
+        && (!rightInfo || (isWhite ? rightInfo.max <= rank : rightInfo.min >= rank))
+      ) {
+        score += 500 + (
+          rank === Bot.ranks.RANK_7[color]
+            ? 1000
+            : rank === Bot.ranks.RANK_6[color]
+              ? 500
+              : rank === Bot.ranks.RANK_5[color]
+                ? 200
+                : 0
+        );
+      }
+    }
+
+    return score + (islandsCount - 1) * -200;
   }
 
-  evalPawns(): number {
-    return 0;
-  }
-
-  evalPieces(
-    color: Color,
-    pawnFiles: PawnFiles,
-    piecesAttacks: PiecesAttacks,
-    isEndgame: boolean
-  ): number {
+  evalPieces(color: Color, positionInfo: PositionInfo, isEndgame: boolean): number {
     const pieces = this.pieces[color];
     const pieceCount = this.pieceCounts[color];
     const opponentColor = Bot.oppositeColor[color];
     const isWhite = color === Color.WHITE;
     const distances = Bot.distances[this.kings[opponentColor].square];
-    const defendedSquares = piecesAttacks.squareAttacks[color];
-    const attackedSquares = piecesAttacks.squareAttacks[opponentColor];
+    const defendedSquares = positionInfo.squareAttacks[color];
+    const attackedSquares = positionInfo.squareAttacks[opponentColor];
     const hangingPiecesCoeff = this.turn === color ? 100 : 1000;
     let bishopsCount = 0;
     let score = 0;
@@ -432,13 +333,13 @@ export default class Bot extends Game {
       }
 
       // rooks on open/semi-open files
-      if (piece.type === PieceType.ROOK && !(file in pawnFiles)) {
-        score += 100;
+      if (piece.type === PieceType.ROOK && !(file in positionInfo.pawnFiles[color])) {
+        score += 100 + (file in positionInfo.pawnFiles[opponentColor] ? 0 : 100);
       }
 
       // control
       if (piece.type !== PieceType.KING || isEndgame) {
-        const attacks = piecesAttacks.attacks[color][i];
+        const attacks = positionInfo.attacks[color][i];
 
         for (let i = 0, l = attacks.length; i < l; i++) {
           const square = attacks[i];
@@ -597,15 +498,15 @@ export default class Bot extends Game {
 
     if (depth === Bot.SEARCH_DEPTH) {
       const timestamp = Date.now();
-      const currentScore = this.evaluatedPositions.get(this.position);
+      const currentScore = this.evaluatedPositions.get(this.positionKey);
       const score = currentScore === undefined ? this.eval(depth) : currentScore;
+
+      if (currentScore === undefined) {
+        this.evaluatedPositions.set(this.positionKey, score);
+      }
 
       this.nodes++;
       this.evalTime += Date.now() - timestamp;
-
-      if (currentScore === undefined) {
-        this.evaluatedPositions.set(this.position, score);
-      }
 
       return score;
     }
@@ -681,6 +582,8 @@ export default class Bot extends Game {
     const optimalMoves: { move: number; score: number; }[] = [];
 
     this.evaluatedPositions.clear();
+    this.evaluatedPawnPositions[Color.WHITE].clear();
+    this.evaluatedPawnPositions[Color.BLACK].clear();
 
     legalMoves
       .map((move) => {
@@ -737,22 +640,6 @@ export default class Bot extends Game {
     return selectedMove.move;
   }
 
-  getPawns(color: Color): Piece[] {
-    const pieces = this.pieces[color];
-    const pieceCount = this.pieceCounts[color];
-    const pawns: Piece[] = [];
-
-    for (let i = 0; i < pieceCount; i++) {
-      const piece = pieces[i];
-
-      if (piece.type === PieceType.PAWN) {
-        pawns.push(piece);
-      }
-    }
-
-    return pawns;
-  }
-
   getTimestamp(): number {
     return this.debug ? Date.now() : 0;
   }
@@ -764,15 +651,11 @@ export default class Bot extends Game {
 
     this.nodes = 0;
     this.evalTime = 0;
-    this.evalColorTime = 0;
-    this.evalDoubledPawnsTime = 0;
     this.evalKingSafetyTime = 0;
-    this.evalPassedPawnsTime = 0;
-    this.evalPawnIslandsTime = 0;
+    this.evalPawnsTime = 0;
     this.evalPiecesTime = 0;
-    this.calculateAttacksTime = 0;
+    this.calculatePositionInfoTime = 0;
     this.calculateLegalMovesTime = 0;
-    this.calculateRestTime = 0;
     this.performMoveTime = 0;
     this.revertMoveTime = 0;
     this.moveSortTime = 0;
@@ -788,15 +671,11 @@ export default class Bot extends Game {
     console.log(`rest took ${`${moveTook - this.evalTime}`.red.bold} ms`);
 
     if (this.debug) {
-      console.log(`evalColor took ${this.evalColorTime} ms`);
-      console.log(`evalDoubledPawns took ${this.evalDoubledPawnsTime} ms`);
       console.log(`evalKingSafety took ${this.evalKingSafetyTime} ms`);
-      console.log(`evalPassedPawns took ${this.evalPassedPawnsTime} ms`);
-      console.log(`evalPawnIslands took ${this.evalPawnIslandsTime} ms`);
+      console.log(`evalPawns took ${this.evalPawnsTime} ms`);
       console.log(`evalPiecesTime took ${this.evalPiecesTime} ms`);
-      console.log(`calculateAttacks took ${this.calculateAttacksTime} ms`);
+      console.log(`calculatePositionInfo took ${this.calculatePositionInfoTime} ms`);
       console.log(`calculateLegalMoves took ${this.calculateLegalMovesTime} ms`);
-      console.log(`calculateRest took ${this.calculateRestTime} ms`);
       console.log(`performMove took ${this.performMoveTime} ms`);
       console.log(`revertMove took ${this.revertMoveTime} ms`);
       console.log(`moveSort took ${this.moveSortTime} ms`);
