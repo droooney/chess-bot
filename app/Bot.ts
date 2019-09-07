@@ -10,6 +10,11 @@ interface PositionInfo {
   pawnFiles: { [color in Color]: { [file in number]: { min: number; max: number; }; }; };
 }
 
+interface MoveScore {
+  move: number;
+  score: number;
+}
+
 export default class Bot extends Game {
   static SEARCH_DEPTH = 2 * 2;
   static OPTIMAL_MOVE_THRESHOLD = 50;
@@ -41,11 +46,11 @@ export default class Bot extends Game {
   evalPiecesTime: number = 0;
   calculatePositionInfoTime: number = 0;
   calculateLegalMovesTime: number = 0;
+  calculateMateTime: number = 0;
+  calculateDrawTime: number = 0;
   performMoveTime: number = 0;
   revertMoveTime: number = 0;
   moveSortTime: number = 0;
-  mateTime: number = 0;
-  drawTime: number = 0;
 
   constructor(fen: string, color: Color, debug: boolean) {
     super(fen);
@@ -58,24 +63,24 @@ export default class Bot extends Game {
     const timestamp = this.getTimestamp();
 
     if (this.isCheck && this.isNoMoves()) {
-      this.mateTime += this.getTimestamp() - timestamp;
+      this.calculateMateTime += this.getTimestamp() - timestamp;
 
       return Bot.getMateScore(depth);
     }
 
     const timestamp2 = this.getTimestamp();
 
-    this.mateTime += timestamp2 - timestamp;
+    this.calculateMateTime += timestamp2 - timestamp;
 
     if (this.isDraw || (!this.isCheck && this.isNoMoves())) {
-      this.drawTime += this.getTimestamp() - timestamp2;
+      this.calculateDrawTime += this.getTimestamp() - timestamp2;
 
       return 0;
     }
 
     const timestamp3 = this.getTimestamp();
 
-    this.drawTime += timestamp3 - timestamp2;
+    this.calculateDrawTime += timestamp3 - timestamp2;
 
     const currentPawnScore = this.evaluatedPawnPositions[this.turn].get(this.pawnKey);
     const noPawnScore = currentPawnScore === undefined;
@@ -579,7 +584,7 @@ export default class Bot extends Game {
       return legalMoves[0];
     }
 
-    const optimalMoves: { move: number; score: number; }[] = [];
+    const optimalMoves: MoveScore[] = [];
 
     this.evaluatedPositions.clear();
     this.evaluatedPawnPositions[Color.WHITE].clear();
@@ -588,31 +593,21 @@ export default class Bot extends Game {
     legalMoves
       .map((move) => {
         const moveObject = this.performMove(move);
-
         const score = -this.eval(1);
 
         this.revertMove(moveObject);
 
-        return {
-          move,
-          score
-        };
+        return { move, score };
       })
-      .sort(({ score: score1 }, { score: score2 }) => score2 - score1)
+      .sort(this.scoreSorter)
       .forEach(({ move }) => {
         const moveObject = this.performMove(move);
-
         const score = -this.executeNegamax(1, -Infinity, -(optimalMoves.length ? optimalMoves[0].score - Bot.OPTIMAL_MOVE_THRESHOLD : -Infinity))!;
         const index = optimalMoves.findIndex(({ score: optimalScore }) => score > optimalScore);
 
         optimalMoves.splice(index === -1 ? optimalMoves.length : index, 0, { move, score });
 
         this.revertMove(moveObject);
-
-        return {
-          move,
-          score
-        };
       });
 
     const threshold = Bot.isMateScore(optimalMoves[0].score)
@@ -656,11 +651,11 @@ export default class Bot extends Game {
     this.evalPiecesTime = 0;
     this.calculatePositionInfoTime = 0;
     this.calculateLegalMovesTime = 0;
+    this.calculateMateTime = 0;
+    this.calculateDrawTime = 0;
     this.performMoveTime = 0;
     this.revertMoveTime = 0;
     this.moveSortTime = 0;
-    this.mateTime = 0;
-    this.drawTime = 0;
 
     const timestamp = Date.now();
     const move = this.getOptimalMove();
@@ -673,14 +668,14 @@ export default class Bot extends Game {
     if (this.debug) {
       console.log(`evalKingSafety took ${this.evalKingSafetyTime} ms`);
       console.log(`evalPawns took ${this.evalPawnsTime} ms`);
-      console.log(`evalPiecesTime took ${this.evalPiecesTime} ms`);
+      console.log(`evalPieces took ${this.evalPiecesTime} ms`);
       console.log(`calculatePositionInfo took ${this.calculatePositionInfoTime} ms`);
       console.log(`calculateLegalMoves took ${this.calculateLegalMovesTime} ms`);
+      console.log(`calculateMate took ${this.calculateMateTime} ms`);
+      console.log(`calculateDraw took ${this.calculateDrawTime} ms`);
       console.log(`performMove took ${this.performMoveTime} ms`);
       console.log(`revertMove took ${this.revertMoveTime} ms`);
       console.log(`moveSort took ${this.moveSortTime} ms`);
-      console.log(`mate took ${this.mateTime} ms`);
-      console.log(`draw took ${this.drawTime} ms`);
     }
 
     console.log(`nodes: ${`${this.nodes}`.blue.bold}`);
@@ -708,5 +703,9 @@ export default class Bot extends Game {
 
   pieceSorter = (type1: PieceType, type2: PieceType): number => {
     return type1 - type2;
+  };
+
+  scoreSorter = ({ score: score1 }: MoveScore, { score: score2 }: MoveScore) => {
+    return score2 - score1;
   };
 }

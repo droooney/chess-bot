@@ -576,10 +576,8 @@ export default class Game extends Utils {
     const to = move >> 3 & 63;
     const promotion: PieceType = move & 7;
     const piece = this.board[from]!;
-    const {
-      type: pieceType,
-      color: pieceColor
-    } = piece;
+    const pieceType = piece.type;
+    const pieceColor = piece.color;
     const opponentColor = Game.oppositeColor[this.turn];
     const wasCheck = this.isCheck;
     const wasDoubleCheck = this.isDoubleCheck;
@@ -590,9 +588,7 @@ export default class Game extends Utils {
     const prevPossibleCastling = this.possibleCastling;
     const prevPliesWithoutCaptureOrPawnMove = this.pliesWithoutCaptureOrPawnMove;
     const isEnPassantCapture = pieceType === PieceType.PAWN && to === this.possibleEnPassant;
-    const capturedPiece = isEnPassantCapture
-      ? this.board[Game.pawnEnPassantPieceSquares[to]]
-      : this.board[to];
+    const capturedPiece = this.board[isEnPassantCapture ? Game.pawnEnPassantPieceSquares[to] : to];
     let checkingPiece: Piece | null = null;
     let castlingRook: Piece | null = null;
     const positionPieceKeyChange = this.pieceKeys[pieceColor][pieceType][from] ^ this.pieceKeys[pieceColor][pieceType][to];
@@ -702,9 +698,7 @@ export default class Game extends Utils {
       this.possibleEnPassant = null;
     }
 
-    this.positionKey ^= this.turnKey;
-    this.positionKey ^= this.castlingKeys[prevPossibleCastling];
-    this.positionKey ^= this.castlingKeys[this.possibleCastling];
+    this.positionKey ^= this.turnKey ^ this.castlingKeys[prevPossibleCastling] ^ this.castlingKeys[this.possibleCastling];
 
     if (prevPossibleEnPassant) {
       this.positionKey ^= this.enPassantKeys[prevPossibleEnPassant];
@@ -788,17 +782,17 @@ export default class Game extends Utils {
       }
     }
 
-    const positionCount = this.positions.get(this.positionKey) || 0;
+    const prevPositionCount = this.positions.get(this.positionKey) || 0;
 
     this.turn = opponentColor;
     this.isCheck = isCheck;
     this.isDoubleCheck = isNormalCheck && isDiscoveredCheck;
     this.checkingPiece = checkingPiece;
-    this.positions.set(this.positionKey, positionCount + 1);
+    this.positions.set(this.positionKey, prevPositionCount + 1);
 
     if (
       this.pliesWithoutCaptureOrPawnMove >= 100
-      || positionCount >= 2
+      || prevPositionCount >= 2
       || this.isInsufficientMaterial()
     ) {
       this.isDraw = true;
@@ -816,6 +810,7 @@ export default class Game extends Utils {
       prevCheckingPiece,
       prevPositionKey,
       prevPawnKey,
+      prevPositionCount,
       prevPossibleEnPassant,
       prevPossibleCastling,
       prevPliesWithoutCaptureOrPawnMove
@@ -849,15 +844,7 @@ export default class Game extends Utils {
       changedPieceOldSquare,
       capturedPiece,
       promotedPawn,
-      castlingRook,
-      wasCheck,
-      wasDoubleCheck,
-      prevCheckingPiece,
-      prevPositionKey,
-      prevPawnKey,
-      prevPossibleEnPassant,
-      prevPossibleCastling,
-      prevPliesWithoutCaptureOrPawnMove
+      castlingRook
     } = move;
 
     this.board[changedPiece.square] = null;
@@ -891,23 +878,21 @@ export default class Game extends Utils {
       castlingRook.square = oldSquare;
     }
 
-    this.isCheck = wasCheck;
-    this.isDoubleCheck = wasDoubleCheck;
-    this.checkingPiece = prevCheckingPiece;
+    this.isCheck = move.wasCheck;
+    this.isDoubleCheck = move.wasDoubleCheck;
+    this.checkingPiece = move.prevCheckingPiece;
 
-    const positionCount = this.positions.get(this.positionKey)!;
-
-    if (positionCount === 1) {
+    if (move.prevPositionCount === 0) {
       this.positions.delete(this.positionKey);
     } else {
-      this.positions.set(this.positionKey, positionCount - 1);
+      this.positions.set(this.positionKey, move.prevPositionCount);
     }
 
-    this.positionKey = prevPositionKey;
-    this.pawnKey = prevPawnKey;
-    this.possibleEnPassant = prevPossibleEnPassant;
-    this.possibleCastling = prevPossibleCastling;
-    this.pliesWithoutCaptureOrPawnMove = prevPliesWithoutCaptureOrPawnMove;
+    this.positionKey = move.prevPositionKey;
+    this.pawnKey = move.prevPawnKey;
+    this.possibleEnPassant = move.prevPossibleEnPassant;
+    this.possibleCastling = move.prevPossibleCastling;
+    this.pliesWithoutCaptureOrPawnMove = move.prevPliesWithoutCaptureOrPawnMove;
     this.turn = prevTurn;
     this.isDraw = false;
   }
