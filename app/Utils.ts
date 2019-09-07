@@ -81,6 +81,9 @@ export default class Utils {
     new Array(8).fill(0).map((_v, x) => y << 3 | x)
   ));
   static allSquares: number[] = new Array(64).fill(0).map((_v, i) => i);
+  static moves: number[][] = Utils.allSquares.map((from) => (
+    Utils.allSquares.map((to) => from << 9 | to << 3)
+  ));
   static movesFrom = new Array(1 << 15).fill(0).map((_, move) => move >> 9);
   static movesTo = new Array(1 << 15).fill(0).map((_, move) => move >> 3 & 63);
   static squareRanks: number[] = Utils.allSquares.map((square) => square >> 3);

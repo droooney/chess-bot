@@ -89,15 +89,15 @@ export default class Game extends Utils {
       const piece = pieces[i];
       const legalMoves = this.getLegalMoves(piece, false);
 
-      for (let i = 0, l = legalMoves.length; i < l; i++) {
+      for (let i = 0; i < legalMoves.length; i++) {
         const square = legalMoves[i];
-        const move = piece.square << 9 | square << 3;
+        const move = Game.moves[piece.square][square];
 
         if (piece.type === PieceType.PAWN && square in Game.promotionSquares[this.turn]) {
-          moves.push(move | PieceType.QUEEN);
-          moves.push(move | PieceType.KNIGHT);
-          moves.push(move | PieceType.ROOK);
-          moves.push(move | PieceType.BISHOP);
+          moves.push(move + PieceType.QUEEN);
+          moves.push(move + PieceType.KNIGHT);
+          moves.push(move + PieceType.ROOK);
+          moves.push(move + PieceType.BISHOP);
         } else {
           moves.push(move);
         }
