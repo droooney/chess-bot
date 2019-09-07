@@ -687,8 +687,10 @@ export default class Bot extends Game {
   }
 
   moveSorter = (move1: number, move2: number): number => {
-    const to1Piece = this.board[move1 >> 3 & 63];
-    const to2Piece = this.board[move2 >> 3 & 63];
+    const from1Piece = this.board[Bot.movesFrom[move1]]!;
+    const from2Piece = this.board[Bot.movesFrom[move2]]!;
+    const to1Piece = this.board[Bot.movesTo[move1]];
+    const to2Piece = this.board[Bot.movesTo[move2]];
 
     if (!to1Piece) {
       return to2Piece ? 1 : 0;
@@ -698,7 +700,7 @@ export default class Bot extends Game {
       return -1;
     }
 
-    return to1Piece.type - to2Piece.type;
+    return (from2Piece.type - to2Piece.type) - (from1Piece.type - to1Piece.type);
   };
 
   pieceSorter = (type1: PieceType, type2: PieceType): number => {

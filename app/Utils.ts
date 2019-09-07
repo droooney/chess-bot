@@ -17,7 +17,6 @@ export enum PieceType {
 export interface Move {
   move: number;
   changedPiece: Piece;
-  changedPieceOldSquare: number;
   capturedPiece: Piece | null;
   promotedPawn: Piece | null;
   castlingRook: Piece | null;
@@ -38,8 +37,6 @@ export interface Piece {
   color: Color;
   square: number;
 }
-
-export type ColorPieces = { [id in number]: Piece; };
 
 export enum CastlingSide {
   KING,
@@ -84,6 +81,8 @@ export default class Utils {
     new Array(8).fill(0).map((_v, x) => y << 3 | x)
   ));
   static allSquares: number[] = new Array(64).fill(0).map((_v, i) => i);
+  static movesFrom = new Array(1 << 15).fill(0).map((_, move) => move >> 9);
+  static movesTo = new Array(1 << 15).fill(0).map((_, move) => move >> 3 & 63);
   static squareRanks: number[] = Utils.allSquares.map((square) => square >> 3);
   static squareFiles: number[] = Utils.allSquares.map((square) => square & 7);
   static diagonalMoves: number[][][] = Utils.allSquares.map((square) => [

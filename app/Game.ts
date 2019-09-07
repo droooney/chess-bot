@@ -572,8 +572,8 @@ export default class Game extends Utils {
   performMove(move: number): Move {
     // this.moves.push(move);
 
-    const from = move >> 9;
-    const to = move >> 3 & 63;
+    const from = Game.movesFrom[move];
+    const to = Game.movesTo[move];
     const promotion: PieceType = move & 7;
     const piece = this.board[from]!;
     const pieceType = piece.type;
@@ -801,7 +801,6 @@ export default class Game extends Utils {
     return {
       move,
       changedPiece: piece,
-      changedPieceOldSquare: from,
       capturedPiece,
       promotedPawn: promotion ? piece : null,
       castlingRook,
@@ -841,15 +840,15 @@ export default class Game extends Utils {
     const prevTurn = Game.oppositeColor[this.turn];
     const {
       changedPiece,
-      changedPieceOldSquare,
       capturedPiece,
       promotedPawn,
       castlingRook
     } = move;
+    const from = Game.movesFrom[move.move];
 
     this.board[changedPiece.square] = null;
-    this.board[changedPieceOldSquare] = changedPiece;
-    changedPiece.square = changedPieceOldSquare;
+    this.board[from] = changedPiece;
+    changedPiece.square = from;
 
     if (capturedPiece) {
       const opponentPieces = this.pieces[capturedPiece.color];
