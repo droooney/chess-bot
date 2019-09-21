@@ -342,6 +342,14 @@ export default class Utils {
       === Math.abs((square1 & 7) - (square2 & 7))
     ))
   ));
+  static isOnOneLine: boolean[][][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => (
+      Utils.allSquares.map((square3) => (
+        ((square1 >> 3) - (square2 >> 3)) * ((square1 & 7) - (square3 & 7))
+        === ((square1 >> 3) - (square3 >> 3)) * ((square1 & 7) - (square2 & 7))
+      ))
+    ))
+  ));
   static middleSquares: number[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => {
       if (

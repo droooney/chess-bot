@@ -496,7 +496,7 @@ export default class Bot extends Game {
     return score + this.material[color] * 1000 + (bishopsCount >= 2 ? 500 : 0);
   }
 
-  executeNegamax(depth: number, alpha: number, beta: number): number | null {
+  executeNegamax(depth: number, alpha: number, beta: number): number {
     if (this.isDraw) {
       return 0;
     }
@@ -519,7 +519,6 @@ export default class Bot extends Game {
     const timestamp = this.getTimestamp();
     const legalMoves = this.getAllLegalMoves();
     const timestamp2 = this.getTimestamp();
-    let wereNewEvals = false;
 
     if (!legalMoves.length) {
       return this.isCheck ? Bot.getMateScore(depth) : 0;
@@ -541,7 +540,7 @@ export default class Bot extends Game {
       const moveObject = this.performMove(move);
       const timestamp2 = this.getTimestamp();
 
-      const scoreOrNull = this.executeNegamax(depth + 1, -beta, -alpha);
+      const score = -this.executeNegamax(depth + 1, -beta, -alpha);
       const timestamp3 = this.getTimestamp();
 
       this.revertMove(moveObject);
@@ -551,12 +550,6 @@ export default class Bot extends Game {
         this.revertMoveTime += this.getTimestamp() - timestamp3;
       }
 
-      if (scoreOrNull === null) {
-        continue;
-      }
-
-      const score = -scoreOrNull;
-
       if (score >= beta) {
         return beta;
       }
@@ -564,12 +557,6 @@ export default class Bot extends Game {
       if (score > alpha) {
         alpha = score;
       }
-
-      wereNewEvals = true;
-    }
-
-    if (!wereNewEvals) {
-      return null;
     }
 
     return alpha;
@@ -682,25 +669,30 @@ export default class Bot extends Game {
     console.log(`performance: ${`${+(this.nodes / moveTook).toFixed(3)}`.green.bold} kn/s`);
     console.log('-'.repeat(80).bold);
 
-    // return undefined;
+    // return;
     return move;
   }
 
   moveSorter = (move1: number, move2: number): number => {
-    const from1Piece = this.board[Bot.movesFrom[move1]]!;
-    const from2Piece = this.board[Bot.movesFrom[move2]]!;
-    const to1Piece = this.board[Bot.movesTo[move1]];
-    const to2Piece = this.board[Bot.movesTo[move2]];
+    return this.moveScore(move1) - this.moveScore(move2);
+  };
 
-    if (!to1Piece) {
-      return to2Piece ? 1 : 0;
+  moveScore = (move: number): number => {
+    const promotion: PieceType = move & 7;
+
+    if (promotion) {
+      return -100;
     }
 
-    if (!to2Piece) {
-      return -1;
+    const toPiece = this.board[Bot.movesTo[move]];
+
+    if (!toPiece) {
+      return 100;
     }
 
-    return (from2Piece.type - to2Piece.type) - (from1Piece.type - to1Piece.type);
+    const fromPiece = this.board[Bot.movesFrom[move]]!;
+
+    return toPiece.type - fromPiece.type;
   };
 
   pieceSorter = (type1: PieceType, type2: PieceType): number => {

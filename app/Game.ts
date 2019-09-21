@@ -722,8 +722,11 @@ export default class Game extends Utils {
       }
     } else if (newPieceType !== PieceType.KING) {
       if (
-        ((newPieceType === PieceType.BISHOP || newPieceType === PieceType.QUEEN) && Game.isAlignedDiagonally[to][opponentKingSquare])
-        || ((newPieceType === PieceType.ROOK || newPieceType === PieceType.QUEEN) && Game.isAlignedOrthogonally[to][opponentKingSquare])
+        (
+          ((newPieceType === PieceType.BISHOP || newPieceType === PieceType.QUEEN) && Game.isAlignedDiagonally[to][opponentKingSquare])
+          || ((newPieceType === PieceType.ROOK || newPieceType === PieceType.QUEEN) && Game.isAlignedOrthogonally[to][opponentKingSquare])
+        )
+        && (!Game.isOnOneLine[from][to][opponentKingSquare] || capturedPiece)
       ) {
         isCheck = isNormalCheck = true;
 
@@ -743,7 +746,14 @@ export default class Game extends Utils {
       }
     }
 
-    if (Game.isAlignedDiagonally[from][opponentKingSquare] || Game.isAlignedOrthogonally[from][opponentKingSquare]) {
+    if (
+      pieceType !== PieceType.QUEEN
+      && (
+        (Game.isAlignedDiagonally[from][opponentKingSquare] && pieceType !== PieceType.BISHOP)
+        || (Game.isAlignedOrthogonally[from][opponentKingSquare] && pieceType !== PieceType.ROOK)
+      )
+      && !Game.isOnOneLine[from][to][opponentKingSquare]
+    ) {
       const behindSquares = Game.behindSquares[from][opponentKingSquare];
       const sliders = Game.isAlignedDiagonally[from][opponentKingSquare]
         ? Game.diagonalSliders
