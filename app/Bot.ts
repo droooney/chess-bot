@@ -4,10 +4,10 @@ import Game from './Game';
 import { Color, Piece, PieceType } from './Utils';
 
 interface PositionInfo {
-  squareAttacks: { [color in Color]: { [square in number]: PieceType[]; }; };
-  attacks: { [color in Color]: number[][]; };
-  pawns: { [color in Color]: Piece[]; };
-  pawnFiles: { [color in Color]: { [file in number]: { min: number; max: number; }; }; };
+  squareAttacks: Record<Color, Record<number, PieceType[]>>;
+  attacks: Record<Color, number[][]>;
+  pawns: Record<Color, Piece[]>;
+  pawnFiles: Record<Color, Record<number, { min: number; max: number; }>>;
 }
 
 interface MoveScore {
@@ -38,7 +38,7 @@ export default class Bot extends Game {
   debug: boolean;
   moveCount: number = 0;
   evaluatedPositions: Map<bigint, number> = new Map();
-  evaluatedPawnPositions: { [color in Color]: Map<bigint, number>; } = [new Map(), new Map()];
+  evaluatedPawnPositions: Record<Color, Map<bigint, number>> = [new Map(), new Map()];
   nodes: number = 0;
   evalTime: number = 0;
   evalKingSafetyTime: number = 0;
@@ -391,30 +391,9 @@ export default class Bot extends Game {
               if (state === 0) {
                 let lessValuableAttacker = attackingPieces.pop();
 
-                /*
-                for (const pieceId in opponentPieces) {
-                  const attackingPiece = opponentPieces[pieceId];
-                  const legalMoves = this.getLegalMoves(attackingPiece, false);
-
-                  for (let i = 0, l = legalMoves.length; i < l; i++) {
-                    const square = legalMoves[i];
-
-                    if (square === piece.square) {
-                      if (!lessValuableAttacker || lessValuableAttacker.type > attackingPiece.type) {
-                        lessValuableAttacker = attackingPiece;
-                      }
-
-                      break;
-                    }
-                  }
-                }
-                */
-
                 if (!lessValuableAttacker) {
                   break;
                 }
-
-                // this.performMove(lessValuableAttacker.square << 9 | piece.square << 3, false);
 
                 lossStates.push(-Bot.piecesWorth[pieceToTake]);
 
@@ -423,30 +402,9 @@ export default class Bot extends Game {
               } else {
                 let lessValuableDefender = defendingPieces.pop();
 
-                /*
-                for (const pieceId in pieces) {
-                  const defendingPiece = pieces[pieceId];
-                  const legalMoves = this.getLegalMoves(defendingPiece, false);
-
-                  for (let i = 0, l = legalMoves.length; i < l; i++) {
-                    const square = legalMoves[i];
-
-                    if (square === piece.square) {
-                      if (!lessValuableDefender || lessValuableDefender.type > defendingPiece.type) {
-                        lessValuableDefender = defendingPiece;
-                      }
-
-                      break;
-                    }
-                  }
-                }
-                */
-
                 if (!lessValuableDefender) {
                   break;
                 }
-
-                // this.performMove(lessValuableDefender.square << 9 | piece.square << 3, false);
 
                 lossStates.push(Bot.piecesWorth[pieceToTake]);
 
@@ -477,12 +435,6 @@ export default class Bot extends Game {
                   minLossIndex = i;
                 }
               }
-
-              /*
-              if (i < l - 2) {
-                this.revertLastMove();
-              }
-              */
             }
 
             score += (minLossIndex < maxWinIndex ? minLoss : maxWin) * hangingPiecesCoeff;

@@ -35,12 +35,12 @@ export default class Game extends Utils {
   isDoubleCheck: boolean = false;
   checkingPiece: Piece | null = null;
   board: Board = Game.allSquares.map(() => null);
-  kings: { [color in Color]: Piece; } = [null!, null!];
-  keys: { [key in string]: true; } = {};
-  pieces: { [color in Color]: Piece[]; } = [[], []];
-  pieceCounts: { [color in Color]: number; } = [0, 0];
+  kings: Record<Color, Piece> = [null!, null!];
+  keys: Record<string, boolean> = {};
+  pieces: Record<Color, Piece[]> = [[], []];
+  pieceCounts: Record<Color, number> = [0, 0];
   bishopsCount: number = 0;
-  material: { [color in Color]: number; } = [0, 0];
+  material: Record<Color, number> = [0, 0];
   positionKey: bigint = 0n;
   pawnKey: bigint = 0n;
   positions: Map<bigint, number> = new Map();
@@ -49,8 +49,8 @@ export default class Game extends Utils {
   pliesWithoutCaptureOrPawnMove: number = 0;
   turnKey = this.generateKey();
   castlingKeys: bigint[] = new Array(16).fill(0).map(this.generateKey);
-  enPassantKeys: { [square in number]: bigint; } = _.mapValues(Game.pawnEnPassantSquares, this.generateKey);
-  pieceKeys: { [color in Color]: { [pieceType in PieceType]: { [square in number]: bigint; }; }; } = [
+  enPassantKeys: Record<number, bigint> = _.mapValues(Game.pawnEnPassantSquares, this.generateKey);
+  pieceKeys: Record<Color, Record<PieceType, bigint[]>> = [
     [
       Game.allSquares.map(this.generateKey),
       Game.allSquares.map(this.generateKey),
@@ -68,7 +68,7 @@ export default class Game extends Utils {
       Game.allSquares.map(this.generateKey)
     ]
   ];
-  notOwnPiece: { [color in Color]: (square: number) => boolean; } = [
+  notOwnPiece: Record<Color, (square: number) => boolean> = [
     (square) => !this.board[square] || this.board[square]!.color !== Color.WHITE,
     (square) => !this.board[square] || this.board[square]!.color !== Color.BLACK
   ];
@@ -728,19 +728,20 @@ export default class Game extends Utils {
         )
         && (!Game.isOnOneLine[from][to][opponentKingSquare] || capturedPiece)
       ) {
-        isCheck = isNormalCheck = true;
+        isNormalCheck = true;
 
         const middleSquares = Game.middleSquares[to][opponentKingSquare];
 
         for (let i = 0; i < middleSquares.length; i++) {
           if (this.board[middleSquares[i]]) {
-            isCheck = isNormalCheck = false;
+            isNormalCheck = false;
 
             break;
           }
         }
 
-        if (isCheck) {
+        if (isNormalCheck) {
+          isCheck = true;
           checkingPiece = piece;
         }
       }

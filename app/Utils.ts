@@ -63,13 +63,13 @@ export enum PinnedDirection {
   VERTICAL
 }
 
-export type Board = { [square in number]: Piece | null; };
+export type Board = (Piece | null)[];
 
 export default class Utils {
-  static oppositeColor: { [color in Color]: Color; } = [Color.BLACK, Color.WHITE];
-  static pieceLiterals: { [color in Color]: string; } = ['KQRBNP', 'kqrbnp'];
-  static piecesWorth: { [type in PieceType]: number; } = [1000, 16, 8, 5, 5, 1];
-  static pieceFromLiteral: { [literal in string]: PieceType; } = {
+  static oppositeColor: Record<Color, Color> = [Color.BLACK, Color.WHITE];
+  static pieceLiterals: Record<Color, string> = ['KQRBNP', 'kqrbnp'];
+  static piecesWorth: Record<PieceType, number> = [1000, 16, 8, 5, 5, 1];
+  static pieceFromLiteral: Record<string, PieceType> = {
     k: PieceType.KING,
     q: PieceType.QUEEN,
     r: PieceType.ROOK,
@@ -94,7 +94,7 @@ export default class Utils {
     Utils.traverseDirection(square, -1, +1, false),
     Utils.traverseDirection(square, -1, -1, false)
   ].filter((moves) => moves.length));
-  static orthogonalMoves: { [square in number]: number[][]; } = Utils.allSquares.map((square) => [
+  static orthogonalMoves: number[][][] = Utils.allSquares.map((square) => [
     Utils.traverseDirection(square, 0, +1, false),
     Utils.traverseDirection(square, 0, -1, false),
     Utils.traverseDirection(square, +1, 0, false),
@@ -110,10 +110,10 @@ export default class Utils {
     Utils.traverseDirection(square, +1, 0, true),
     Utils.traverseDirection(square, -1, 0, true)
   ].flat());
-  static kingAttacksMap: { [square in number]: boolean; }[] = Utils.kingMoves.map((attacks) => (
-    Utils.arrayToMap(attacks, () => true)
+  static kingAttacksMap: Record<number, boolean>[] = Utils.kingMoves.map((attacks) => (
+    Utils.arrayToRecord(attacks, () => true)
   ));
-  static slidingAttacks: { [type in PieceType.BISHOP | PieceType.ROOK | PieceType.QUEEN]: { [square in number]: number[][]; }; } = {
+  static slidingAttacks: Record<PieceType.BISHOP | PieceType.ROOK | PieceType.QUEEN, number[][][]> = {
     [PieceType.QUEEN]: Utils.allSquares.map((square) => [
       ...Utils.diagonalMoves[square],
       ...Utils.orthogonalMoves[square]
@@ -131,10 +131,10 @@ export default class Utils {
     Utils.traverseDirection(square, -1, +2, true),
     Utils.traverseDirection(square, -1, -2, true)
   ].flat());
-  static knightAttacksMap: { [square in number]: boolean; }[] = Utils.knightMoves.map((attacks) => (
-    Utils.arrayToMap(attacks, () => true)
+  static knightAttacksMap: Record<number, boolean>[] = Utils.knightMoves.map((attacks) => (
+    Utils.arrayToRecord(attacks, () => true)
   ));
-  static pawnAdvanceMoves: { [color in Color]: number[][]; } = [
+  static pawnAdvanceMoves: Record<Color, number[][]> = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
       const y = square >> 3;
@@ -156,14 +156,14 @@ export default class Utils {
           : [Utils.squares[y - 1][x]];
     })
   ];
-  static pawnDoubleAdvanceMoves: { [color in Color]: (number | null)[]; } = [
+  static pawnDoubleAdvanceMoves: Record<Color, number[]> = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
       const y = square >> 3;
 
       return y === 1
         ? Utils.squares[y + 2][x]
-        : null;
+        : -1;
     }),
     Utils.allSquares.map((square) => {
       const x = square & 7;
@@ -171,10 +171,10 @@ export default class Utils {
 
       return y === 6
         ? Utils.squares[y - 2][x]
-        : null;
+        : -1;
     })
   ];
-  static pawnEnPassantSquaresMap: { [square in number]: number; } = Utils.arrayToMap([
+  static pawnEnPassantSquaresMap: Record<number, number> = Utils.arrayToRecord([
     ...Utils.squares[1],
     ...Utils.squares[6]
   ], (square) => {
@@ -185,16 +185,16 @@ export default class Utils {
       ? Utils.squares[y + 1][x]
       : Utils.squares[y - 1][x];
   });
-  static pawnEnPassantSquares: { [square in number]: boolean; } = Utils.arrayToMap([
+  static pawnEnPassantSquares: Record<number, boolean> = Utils.arrayToRecord([
     ...Utils.squares[2],
     ...Utils.squares[5]
   ], () => true);
-  static pawnEnPassantPieceSquares: { [square in number]: number; } = _.mapValues(Utils.pawnEnPassantSquares, (_v, square) => (
+  static pawnEnPassantPieceSquares: Record<number, number> = _.mapValues(Utils.pawnEnPassantSquares, (_v, square) => (
     (+square >> 3) === 2
       ? +square + 8
       : +square - 8
   ));
-  static pawnEnPassantOpponentPawnSquares: { [square in number]: [number, number]; } = Utils.arrayToMap([
+  static pawnEnPassantOpponentPawnSquares: Record<number, [number, number]> = Utils.arrayToRecord([
     ...Utils.squares[3],
     ...Utils.squares[4]
   ], (square) => (
@@ -204,7 +204,7 @@ export default class Utils {
         ? [square - 1, -1]
         : [square - 1, square + 1]
   ));
-  static pawnAttacks: { [color in Color]: number[][]; } = [
+  static pawnAttacks: Record<Color, number[][]> = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
       const y = square >> 3;
@@ -222,38 +222,38 @@ export default class Utils {
         : [Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter((square) => square !== undefined);
     })
   ];
-  static pawnAttacksMap: { [color in Color]: { [square in number]: boolean; }[]; } = _.mapValues(Utils.pawnAttacks, (colorAttacks) => (
+  static pawnAttacksMap: Record<Color, Record<number, boolean>[]> = _.mapValues(Utils.pawnAttacks, (colorAttacks) => (
     colorAttacks.map((attacks) => (
-      Utils.arrayToMap(attacks, () => true)
+      Utils.arrayToRecord(attacks, () => true)
     ))
   ));
-  static promotionSquares: { [type in Color]: { [square in number]: boolean; }; } = [
-    Utils.arrayToMap(Utils.allSquares.slice(56), () => true),
-    Utils.arrayToMap(Utils.allSquares.slice(0, 8), () => true)
+  static promotionSquares: Record<Color, Record<number, boolean>> = [
+    Utils.arrayToRecord(Utils.allSquares.slice(56), () => true),
+    Utils.arrayToRecord(Utils.allSquares.slice(0, 8), () => true)
   ];
-  static castling: { [color in Color]: { [castlingSide in CastlingSide]: Castling; }; } = [
+  static castling: Record<Color, Record<CastlingSide, Castling>> = [
     [Castling.WHITE_KING_SIDE, Castling.WHITE_QUEEN_SIDE],
     [Castling.BLACK_KING_SIDE, Castling.BLACK_QUEEN_SIDE]
   ];
-  static fenCastling: { [side in string]: Castling; } = {
+  static fenCastling: Record<string, Castling> = {
     K: Castling.WHITE_KING_SIDE,
     Q: Castling.WHITE_QUEEN_SIDE,
     k: Castling.BLACK_KING_SIDE,
     q: Castling.BLACK_QUEEN_SIDE
   };
-  static rookCastlingPermissions: { [rookSquare in number]: Castling; } = {
+  static rookCastlingPermissions: Record<number, Castling> = {
     [Utils.squares[0][0]]: Castling.WHITE_QUEEN_SIDE,
     [Utils.squares[7][0]]: Castling.BLACK_QUEEN_SIDE,
     [Utils.squares[0][7]]: Castling.WHITE_KING_SIDE,
     [Utils.squares[7][7]]: Castling.BLACK_KING_SIDE
   };
-  static kingCastlingSides: { [kingSquare in number]: CastlingSide; } = {
+  static kingCastlingSides: Record<number, CastlingSide> = {
     [Utils.squares[0][2]]: CastlingSide.QUEEN,
     [Utils.squares[7][2]]: CastlingSide.QUEEN,
     [Utils.squares[0][6]]: CastlingSide.KING,
     [Utils.squares[7][6]]: CastlingSide.KING
   };
-  static castlingParams: { [color in Color]: { [castlingSide in CastlingSide]: CastlingParams; }; } = [
+  static castlingParams: Record<Color, Record<CastlingSide, CastlingParams>> = [
     [
       {
         rookSquare: Utils.squares[0][7],
@@ -297,8 +297,8 @@ export default class Utils {
       }
     ]
   ];
-  static kingInitialSquares: { [color in Color]: number; } = [Utils.squares[0][4], Utils.squares[7][4]];
-  static rookInitialSquares: { [square in number]: number; } = {
+  static kingInitialSquares: Record<Color, number> = [Utils.squares[0][4], Utils.squares[7][4]];
+  static rookInitialSquares: Record<number, number> = {
     [Utils.squares[0][3]]: Utils.squares[0][0],
     [Utils.squares[7][3]]: Utils.squares[7][0],
     [Utils.squares[0][5]]: Utils.squares[0][7],
@@ -377,8 +377,8 @@ export default class Utils {
       return middleSquares;
     })
   ));
-  static middleSquaresMap: { [square in number]: boolean; }[][] = Utils.middleSquares.map((middleSquares) => (
-    middleSquares.map((middleSquares) => Utils.arrayToMap(middleSquares, () => true))
+  static middleSquaresMap: Record<number, boolean>[][] = Utils.middleSquares.map((middleSquares) => (
+    middleSquares.map((middleSquares) => Utils.arrayToRecord(middleSquares, () => true))
   ));
   static behindSquares: number[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => {
@@ -398,10 +398,10 @@ export default class Utils {
       return Utils.traverseDirection(square1, incrementX, incrementY, false);
     })
   ));
-  static behindAndMiddleSquaresMap: { [square in number]: boolean; }[][] = Utils.allSquares.map((square1) => (
+  static behindAndMiddleSquaresMap: Record<number, boolean>[][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => ({
       ...Utils.middleSquaresMap[square1][square2],
-      ...Utils.arrayToMap(Utils.behindSquares[square1][square2], () => true)
+      ...Utils.arrayToRecord(Utils.behindSquares[square1][square2], () => true)
     }))
   ));
   static directions = {
@@ -423,14 +423,24 @@ export default class Utils {
     [PieceType.QUEEN]: true
   };
 
-  static arrayToMap<T extends string | number, R>(array: T[], callback: (value: T) => R): { [key in T]: R; } {
-    const map = {} as { [key in T]: R; };
+  static arrayToMap<T, R>(array: T[], callback: (value: T) => R): Map<T, R> {
+    const map: Map<T, R> = new Map();
 
     array.forEach((value) => {
-      map[value] = callback(value);
+      map.set(value, callback(value));
     });
 
     return map;
+  }
+
+  static arrayToRecord<T extends keyof any, R>(array: T[], callback: (value: T) => R): Record<T, R> {
+    const record = {} as Record<T, R>;
+
+    array.forEach((value) => {
+      record[value] = callback(value);
+    });
+
+    return record;
   }
 
   static uciToMove(uci: string): number {
