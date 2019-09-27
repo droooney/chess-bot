@@ -110,9 +110,7 @@ export default class Utils {
     Utils.traverseDirection(square, +1, 0, true),
     Utils.traverseDirection(square, -1, 0, true)
   ].flat());
-  static kingAttacksMap: Record<number, boolean>[] = Utils.kingMoves.map((attacks) => (
-    Utils.arrayToRecord(attacks, () => true)
-  ));
+  static kingAttacksSet: Set<number>[] = Utils.kingMoves.map((attacks) => new Set(attacks));
   static slidingAttacks: Record<PieceType.BISHOP | PieceType.ROOK | PieceType.QUEEN, number[][][]> = {
     [PieceType.QUEEN]: Utils.allSquares.map((square) => [
       ...Utils.diagonalMoves[square],
@@ -131,9 +129,7 @@ export default class Utils {
     Utils.traverseDirection(square, -1, +2, true),
     Utils.traverseDirection(square, -1, -2, true)
   ].flat());
-  static knightAttacksMap: Record<number, boolean>[] = Utils.knightMoves.map((attacks) => (
-    Utils.arrayToRecord(attacks, () => true)
-  ));
+  static knightAttacksSet: Set<number>[] = Utils.knightMoves.map((attacks) => new Set(attacks));
   static pawnAdvanceMoves: Record<Color, number[][]> = [
     Utils.allSquares.map((square) => {
       const x = square & 7;
@@ -174,7 +170,7 @@ export default class Utils {
         : -1;
     })
   ];
-  static pawnEnPassantSquaresMap: Record<number, number> = Utils.arrayToRecord([
+  static pawnEnPassantSquaresMap: Map<number, number> = Utils.arrayToMap([
     ...Utils.squares[1],
     ...Utils.squares[6]
   ], (square) => {
@@ -194,7 +190,7 @@ export default class Utils {
       ? +square + 8
       : +square - 8
   ));
-  static pawnEnPassantOpponentPawnSquares: Record<number, [number, number]> = Utils.arrayToRecord([
+  static pawnEnPassantOpponentPawnSquares: Map<number, [number, number]> = Utils.arrayToMap([
     ...Utils.squares[3],
     ...Utils.squares[4]
   ], (square) => (
@@ -222,14 +218,12 @@ export default class Utils {
         : [Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter((square) => square !== undefined);
     })
   ];
-  static pawnAttacksMap: Record<Color, Record<number, boolean>[]> = _.mapValues(Utils.pawnAttacks, (colorAttacks) => (
-    colorAttacks.map((attacks) => (
-      Utils.arrayToRecord(attacks, () => true)
-    ))
+  static pawnAttacksSet: Record<Color, Set<number>[]> = _.mapValues(Utils.pawnAttacks, (colorAttacks) => (
+    colorAttacks.map((attacks) => new Set(attacks))
   ));
-  static promotionSquares: Record<Color, Record<number, boolean>> = [
-    Utils.arrayToRecord(Utils.allSquares.slice(56), () => true),
-    Utils.arrayToRecord(Utils.allSquares.slice(0, 8), () => true)
+  static promotionSquaresSet: Record<Color, Set<number>> = [
+    new Set(Utils.allSquares.slice(56)),
+    new Set(Utils.allSquares.slice(0, 8))
   ];
   static castling: Record<Color, Record<CastlingSide, Castling>> = [
     [Castling.WHITE_KING_SIDE, Castling.WHITE_QUEEN_SIDE],
@@ -377,8 +371,8 @@ export default class Utils {
       return middleSquares;
     })
   ));
-  static middleSquaresMap: Record<number, boolean>[][] = Utils.middleSquares.map((middleSquares) => (
-    middleSquares.map((middleSquares) => Utils.arrayToRecord(middleSquares, () => true))
+  static middleSquaresSet: Set<number>[][] = Utils.middleSquares.map((middleSquares) => (
+    middleSquares.map((middleSquares) => new Set(middleSquares))
   ));
   static behindSquares: number[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => {
@@ -398,11 +392,11 @@ export default class Utils {
       return Utils.traverseDirection(square1, incrementX, incrementY, false);
     })
   ));
-  static behindAndMiddleSquaresMap: Record<number, boolean>[][] = Utils.allSquares.map((square1) => (
-    Utils.allSquares.map((square2) => ({
-      ...Utils.middleSquaresMap[square1][square2],
-      ...Utils.arrayToRecord(Utils.behindSquares[square1][square2], () => true)
-    }))
+  static behindAndMiddleSquaresSet: Set<number>[][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => new Set([
+      ...Utils.middleSquares[square1][square2],
+      ...Utils.behindSquares[square1][square2]
+    ]))
   ));
   static directions = {
     UP: [1, -1],

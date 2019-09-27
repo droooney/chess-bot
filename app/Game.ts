@@ -93,7 +93,7 @@ export default class Game extends Utils {
         const square = legalMoves[i];
         const move = Game.moves[piece.square][square];
 
-        if (piece.type === PieceType.PAWN && square in Game.promotionSquares[this.turn]) {
+        if (piece.type === PieceType.PAWN && Game.promotionSquaresSet[this.turn].has(square)) {
           moves.push(move + PieceType.QUEEN);
           moves.push(move + PieceType.KNIGHT);
           moves.push(move + PieceType.ROOK);
@@ -168,7 +168,7 @@ export default class Game extends Utils {
 
     let isPinned = false;
     let pinnedDirection;
-    let pinnedDirectionSquaresMap = {};
+    let pinnedDirectionSquaresSet: Set<number> | null = null;
 
     if (Game.isAlignedOrthogonally[piece.square][kingSquare] || Game.isAlignedDiagonally[piece.square][kingSquare]) {
       const behindSquares = Game.behindSquares[piece.square][kingSquare];
@@ -208,7 +208,7 @@ export default class Game extends Utils {
             : Game.squareRanks[piece.square] === Game.squareRanks[kingSquare]
               ? PinnedDirection.HORIZONTAL
               : PinnedDirection.VERTICAL;
-          pinnedDirectionSquaresMap = Game.behindAndMiddleSquaresMap[piece.square][kingSquare];
+          pinnedDirectionSquaresSet = Game.behindAndMiddleSquaresSet[piece.square][kingSquare];
         }
       }
     }
@@ -269,7 +269,7 @@ export default class Game extends Utils {
           && (
             // and not blocking slider checker
             !(this.checkingPiece!.type in Game.sliders)
-            || !(square in Game.middleSquaresMap[kingSquare][this.checkingPiece!.square])
+            || !Game.middleSquaresSet[kingSquare][this.checkingPiece!.square].has(square)
           )
         ) {
           continue;
@@ -277,7 +277,7 @@ export default class Game extends Utils {
       }
 
       if (!isKing && (!isPawn || square !== this.possibleEnPassant)) {
-        if (!isPinned || square in pinnedDirectionSquaresMap) {
+        if (!isPinned || (pinnedDirectionSquaresSet && pinnedDirectionSquaresSet.has(square))) {
           legalMoves.push(square);
 
           if (stopAfter1) {
@@ -527,13 +527,13 @@ export default class Game extends Utils {
 
       if (piece.type === PieceType.KING || piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
         if (
-          square in (
+          (
             piece.type === PieceType.KING
-              ? Game.kingAttacksMap[piece.square]
+              ? Game.kingAttacksSet[piece.square]
               : piece.type === PieceType.KNIGHT
-                ? Game.knightAttacksMap[piece.square]
-                : Game.pawnAttacksMap[piece.color][piece.square]
-          )
+                ? Game.knightAttacksSet[piece.square]
+                : Game.pawnAttacksSet[piece.color][piece.square]
+          ).has(square)
         ) {
           return true;
         }
@@ -675,8 +675,9 @@ export default class Game extends Utils {
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
-      const leftPiece = this.board[Game.pawnEnPassantOpponentPawnSquares[to][0]];
-      const rightPiece = this.board[Game.pawnEnPassantOpponentPawnSquares[to][1]];
+      const opponentPawnSquares = Game.pawnEnPassantOpponentPawnSquares.get(to)!;
+      const leftPiece = this.board[opponentPawnSquares[0]];
+      const rightPiece = this.board[opponentPawnSquares[1]];
 
       if ((
         leftPiece
@@ -687,7 +688,7 @@ export default class Game extends Utils {
         && rightPiece.type === PieceType.PAWN
         && rightPiece.color === opponentColor
       )) {
-        const enPassantSquare = Game.pawnEnPassantSquaresMap[from];
+        const enPassantSquare = Game.pawnEnPassantSquaresMap.get(from)!;
 
         this.possibleEnPassant = enPassantSquare;
         this.positionKey ^= this.enPassantKeys[enPassantSquare];
@@ -711,11 +712,11 @@ export default class Game extends Utils {
     const newPieceType = piece.type;
 
     if (newPieceType === PieceType.KNIGHT || newPieceType === PieceType.PAWN) {
-      isCheck = isNormalCheck = opponentKingSquare in (
+      isCheck = isNormalCheck = (
         newPieceType === PieceType.KNIGHT
-          ? Game.knightAttacksMap[to]
-          : Game.pawnAttacksMap[pieceColor][to]
-      );
+          ? Game.knightAttacksSet[to]
+          : Game.pawnAttacksSet[pieceColor][to]
+      ).has(opponentKingSquare);
 
       if (isCheck) {
         checkingPiece = piece;
