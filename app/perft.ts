@@ -8,7 +8,7 @@ const realMap = {};
 const mm = {};
 const checkPosition = false;
 const debug = false;
-const timestamp = process.hrtime.bigint();
+const timestamp = Date.now();
 const tests = [
   {
     initialFen: Game.standardFen,
@@ -43,6 +43,9 @@ const tests = [
     nodeCounts: [42, 1_432, 51_677, 1_747_286]
   }
 ];
+// let calculateLegalMovesTime = 0;
+// let performMoveTime = 0;
+// let revertMoveTime = 0;
 
 if (checkPosition) {
   for (let i = debug ? DEPTH : 1; i <= DEPTH; i++) {
@@ -61,10 +64,13 @@ if (checkPosition) {
   });
 }
 
-console.log(`test took ${Number(process.hrtime.bigint() - timestamp) / 1e6} ms`);
+console.log(`test took ${Date.now() - timestamp} ms`);
+// console.log(`calculateLegalMoves took ${calculateLegalMovesTime} ms`);
+// console.log(`performMove took ${performMoveTime} ms`);
+// console.log(`revertMove took ${revertMoveTime} ms`);
 
 function perft(initialFen: string, depth: number, useMap: boolean): number {
-  const timestamp = process.hrtime.bigint();
+  const timestamp = Date.now();
   const game = new Game(initialFen);
   const calculateNodes = (depth: number): number => {
     if (depth === 0) {
@@ -72,15 +78,26 @@ function perft(initialFen: string, depth: number, useMap: boolean): number {
     }
 
     let nodes = 0;
+    // const timestamp = Date.now();
     const legalMoves = game.getAllLegalMoves();
 
+    // calculateLegalMovesTime += Date.now() - timestamp;
+
     for (let i = 0, l = legalMoves.length; i < l; i++) {
+      // const timestamp = Date.now();
       const move = game.performMove(legalMoves[i]);
+
+      // performMoveTime += Date.now() - timestamp;
+
       const moveNodes = calculateNodes(depth - 1);
 
       nodes += moveNodes;
 
+      // const timestamp2 = Date.now();
+
       game.revertMove(move);
+
+      // revertMoveTime += Date.now() - timestamp2;
 
       if (useMap && depth === DEPTH) {
         const uci = Game.moveToUci(legalMoves[i]);
@@ -107,7 +124,7 @@ function perft(initialFen: string, depth: number, useMap: boolean): number {
   };
 
   const nodes = calculateNodes(depth);
-  const time = Number(process.hrtime.bigint() - timestamp) / 1e6;
+  const time = Date.now() - timestamp;
 
   if (false) {
     game.performMove(Game.uciToMove('g4h5'));
@@ -119,7 +136,7 @@ function perft(initialFen: string, depth: number, useMap: boolean): number {
   console.log('depth:', depth);
   console.log('nodes:', nodes);
   console.log('time:', `${time} ms`);
-  console.log('perft:', `${nodes / time} kn/s`);
+  console.log('perft:', `${Math.round(nodes / time)} kn/s`);
 
   return nodes;
 }

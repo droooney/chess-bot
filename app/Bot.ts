@@ -618,7 +618,7 @@ export default class Bot extends Game {
     }
 
     console.log(`nodes: ${`${this.nodes}`.blue.bold}`);
-    console.log(`performance: ${`${+(this.nodes / moveTook).toFixed(3)}`.green.bold} kn/s`);
+    console.log(`performance: ${`${Math.round(this.nodes / moveTook)}`.green.bold} kn/s`);
     console.log('-'.repeat(80).bold);
 
     // return;
