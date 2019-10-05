@@ -40,6 +40,7 @@ export default class Game extends Utils {
   pieces: Record<Color, Piece[]> = [[], []];
   pieceCounts: Record<Color, number> = [0, 0];
   bishopsCount: number = 0;
+  pawnCount: number = 0;
   material: Record<Color, number> = [0, 0];
   positionKey: bigint = 0n;
   pawnKey: bigint = 0n;
@@ -435,6 +436,25 @@ export default class Game extends Utils {
     return moves;
   }
 
+  isControlledByOpponentPawn(square: number, color: Color): boolean {
+    const opponentColor = Game.oppositeColor[color];
+    const attackingPawnSquares = Game.pawnAttacks[color][square];
+    const leftPawn = this.board[attackingPawnSquares[0]];
+    const rightPawn = this.board[attackingPawnSquares[1]];
+
+    return (
+      (!!leftPawn && leftPawn.type === PieceType.PAWN && leftPawn.color === opponentColor)
+      || (!!rightPawn && rightPawn.type === PieceType.PAWN && rightPawn.color === opponentColor)
+    );
+  }
+
+  isEndgame(): boolean {
+    return (
+      this.pawnCount < 5
+      || this.pieceCounts[Color.WHITE] + this.pieceCounts[Color.BLACK] - this.pawnCount < 9
+    );
+  }
+
   isInCheck(): boolean {
     return this.isSquareAttacked(this.kings[this.turn].square);
   }
@@ -650,14 +670,11 @@ export default class Game extends Utils {
 
       if (capturedPiece.type === PieceType.ROOK && capturedPiece.square in Game.rookCastlingPermissions) {
         this.possibleCastling &= ~Game.rookCastlingPermissions[capturedPiece.square];
-      }
-
-      if (capturedPiece.type === PieceType.BISHOP) {
+      } else if (capturedPiece.type === PieceType.BISHOP) {
         this.bishopsCount--;
-      }
-
-      if (capturedPiece.type === PieceType.PAWN) {
+      } else if (capturedPiece.type === PieceType.PAWN) {
         this.pawnKey ^= this.pieceKeys[capturedPiece.color][capturedPiece.type][capturedPiece.square];
+        this.pawnCount--;
       }
     }
 
@@ -672,6 +689,7 @@ export default class Game extends Utils {
       this.material[pieceColor] += Game.piecesWorth[promotion] - Game.piecesWorth[PieceType.PAWN];
       this.positionKey ^= this.pieceKeys[pieceColor][PieceType.PAWN][to] ^ this.pieceKeys[pieceColor][promotion][to];
       this.pawnKey ^= this.pieceKeys[pieceColor][PieceType.PAWN][to];
+      this.pawnCount--;
     }
 
     if (pieceType === PieceType.PAWN && Game.pawnDoubleAdvanceMoves[pieceColor][from] === to) {
@@ -812,9 +830,8 @@ export default class Game extends Utils {
 
     return {
       move,
-      changedPiece: piece,
+      movedPiece: piece,
       capturedPiece,
-      promotedPawn: promotion ? piece : null,
       castlingRook,
       wasCheck,
       wasDoubleCheck,
@@ -851,16 +868,16 @@ export default class Game extends Utils {
 
     const prevTurn = Game.oppositeColor[this.turn];
     const {
-      changedPiece,
+      movedPiece,
       capturedPiece,
-      promotedPawn,
       castlingRook
     } = move;
     const from = Game.movesFrom[move.move];
+    const promotion: PieceType = move.move & 7;
 
-    this.board[changedPiece.square] = null;
-    this.board[from] = changedPiece;
-    changedPiece.square = from;
+    this.board[movedPiece.square] = null;
+    this.board[from] = movedPiece;
+    movedPiece.square = from;
 
     if (capturedPiece) {
       const opponentPieces = this.pieces[capturedPiece.color];
@@ -873,12 +890,15 @@ export default class Game extends Utils {
 
       if (capturedPiece.type === PieceType.BISHOP) {
         this.bishopsCount++;
+      } else if (capturedPiece.type === PieceType.PAWN) {
+        this.pawnCount++;
       }
     }
 
-    if (promotedPawn) {
-      this.material[promotedPawn.color] -= Game.piecesWorth[promotedPawn.type] - Game.piecesWorth[PieceType.PAWN];
-      promotedPawn.type = PieceType.PAWN;
+    if (promotion) {
+      this.material[movedPiece.color] -= Game.piecesWorth[promotion] - Game.piecesWorth[PieceType.PAWN];
+      movedPiece.type = PieceType.PAWN;
+      this.pawnCount++;
     }
 
     if (castlingRook) {
@@ -935,6 +955,7 @@ export default class Game extends Utils {
 
       if (pieceType === PieceType.PAWN) {
         this.pawnKey ^= this.pieceKeys[piece.color][piece.type][piece.square];
+        this.pawnCount++;
       }
     };
 

@@ -16,9 +16,8 @@ export enum PieceType {
 
 export interface Move {
   move: number;
-  changedPiece: Piece;
+  movedPiece: Piece;
   capturedPiece: Piece | null;
-  promotedPawn: Piece | null;
   castlingRook: Piece | null;
   wasCheck: boolean;
   wasDoubleCheck: boolean;
@@ -64,6 +63,90 @@ export enum PinnedDirection {
 }
 
 export type Board = (Piece | null)[];
+
+const pieceSquareTables: Record<PieceType, number[]> = [
+  // king
+  [
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -30,-40,-40,-50,-50,-40,-40,-30,
+    -20,-30,-30,-40,-40,-30,-30,-20,
+    -10,-20,-20,-20,-20,-20,-20,-10,
+    20, 20,  0,  0,  0,  0, 20, 20,
+    20, 30, 10,  0,  0, 10, 30, 20
+  ],
+
+  // queen
+  [
+    -20,-10,-10, -5, -5,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5,  5,  5,  5,  0,-10,
+    -5,  0,  5,  5,  5,  5,  0, -5,
+    0,  0,  5,  5,  5,  5,  0, -5,
+    -10,  5,  5,  5,  5,  5,  0,-10,
+    -10,  0,  5,  0,  0,  0,  0,-10,
+    -20,-10,-10, -5, -5,-10,-10,-20
+  ],
+
+  // rook
+  [
+    0,  0,  0,  0,  0,  0,  0,  0,
+    5, 10, 10, 10, 10, 10, 10,  5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    -5,  0,  0,  0,  0,  0,  0, -5,
+    0,  0,  0,  5,  5,  0,  0,  0
+  ],
+
+  // bishop
+  [
+    -20,-10,-10,-10,-10,-10,-10,-20,
+    -10,  0,  0,  0,  0,  0,  0,-10,
+    -10,  0,  5, 10, 10,  5,  0,-10,
+    -10,  5,  5, 10, 10,  5,  5,-10,
+    -10,  0, 10, 10, 10, 10,  0,-10,
+    -10, 10, 10, 10, 10, 10, 10,-10,
+    -10,  5,  0,  0,  0,  0,  5,-10,
+    -20,-10,-10,-10,-10,-10,-10,-20
+  ],
+
+  // knight
+  [
+    -50,-40,-30,-30,-30,-30,-40,-50,
+    -40,-20,  0,  0,  0,  0,-20,-40,
+    -30,  0, 10, 15, 15, 10,  0,-30,
+    -30,  5, 15, 20, 20, 15,  5,-30,
+    -30,  0, 15, 20, 20, 15,  0,-30,
+    -30,  5, 10, 15, 15, 10,  5,-30,
+    -40,-20,  0,  5,  5,  0,-20,-40,
+    -50,-40,-30,-30,-30,-30,-40,-50
+  ],
+
+  // pawn
+  [
+    0,  0,  0,  0,  0,  0,  0,  0,
+    50, 50, 50, 50, 50, 50, 50, 50,
+    10, 10, 20, 30, 30, 20, 10, 10,
+    5,  5, 10, 25, 25, 10,  5,  5,
+    0,  0,  0, 20, 20,  0,  0,  0,
+    5, -5,-10,  0,  0,-10, -5,  5,
+    5, 10, 10,-20,-20, 10, 10,  5,
+    0,  0,  0,  0,  0,  0,  0,  0
+  ]
+];
+const kingEndgameSquareTable = [
+  -50,-40,-30,-20,-20,-30,-40,-50,
+  -30,-20,-10,  0,  0,-10,-20,-30,
+  -30,-10, 20, 30, 30, 20,-10,-30,
+  -30,-10, 30, 40, 40, 30,-10,-30,
+  -30,-10, 30, 40, 40, 30,-10,-30,
+  -30,-10, 20, 30, 30, 20,-10,-30,
+  -30,-30,  0,  0,  0,  0,-30,-30,
+  -50,-30,-30,-30,-30,-30,-30,-50
+];
 
 export default class Utils {
   static oppositeColor: Record<Color, Color> = [Color.BLACK, Color.WHITE];
@@ -416,6 +499,60 @@ export default class Utils {
     [PieceType.ROOK]: true,
     [PieceType.QUEEN]: true
   };
+  static pieceSquareTables: Record<Color, Record<PieceType, [number[], number[]]>> = [
+    [
+      [
+        pieceSquareTables[PieceType.KING],
+        kingEndgameSquareTable
+      ],
+      [
+        pieceSquareTables[PieceType.QUEEN],
+        pieceSquareTables[PieceType.QUEEN]
+      ],
+      [
+        pieceSquareTables[PieceType.ROOK],
+        pieceSquareTables[PieceType.ROOK]
+      ],
+      [
+        pieceSquareTables[PieceType.BISHOP],
+        pieceSquareTables[PieceType.BISHOP]
+      ],
+      [
+        pieceSquareTables[PieceType.KNIGHT],
+        pieceSquareTables[PieceType.KNIGHT]
+      ],
+      [
+        pieceSquareTables[PieceType.PAWN],
+        pieceSquareTables[PieceType.PAWN]
+      ]
+    ],
+    [
+      [
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.KING]),
+        Utils.invertPieceSquareTable(kingEndgameSquareTable)
+      ],
+      [
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.QUEEN]),
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.QUEEN])
+      ],
+      [
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.ROOK]),
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.ROOK])
+      ],
+      [
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.BISHOP]),
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.BISHOP])
+      ],
+      [
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.KNIGHT]),
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.KNIGHT])
+      ],
+      [
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.PAWN]),
+        Utils.invertPieceSquareTable(pieceSquareTables[PieceType.PAWN])
+      ]
+    ]
+  ];
 
   static arrayToMap<T, R>(array: T[], callback: (value: T) => R): Map<T, R> {
     const map: Map<T, R> = new Map();
@@ -435,6 +572,15 @@ export default class Utils {
     });
 
     return record;
+  }
+
+  static invertPieceSquareTable(table: number[]): number[] {
+    return table.map((_, square) => {
+      const rank = square >> 3;
+      const file = square & 7;
+
+      return table[(7 - rank) << 3 | file];
+    });
   }
 
   static uciToMove(uci: string): number {
