@@ -424,6 +424,13 @@ export default class Utils {
       Utils.isAlignedOrthogonally[square1][square2] || Utils.isAlignedDiagonally[square1][square2]
     ))
   ));
+  static isPieceAligned: Record<PieceType.BISHOP | PieceType.ROOK | PieceType.QUEEN, boolean>[][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => ({
+      [PieceType.BISHOP]: Utils.isAlignedDiagonally[square1][square2],
+      [PieceType.ROOK]: Utils.isAlignedOrthogonally[square1][square2],
+      [PieceType.QUEEN]: Utils.isAligned[square1][square2]
+    }))
+  ));
   static isOnOneLine: boolean[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => (
       Utils.allSquares.map((square3) => (

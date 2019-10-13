@@ -561,19 +561,7 @@ export default class Game extends Utils {
           return true;
         }
       } else {
-        if (piece.type === PieceType.ROOK && !Game.isAlignedOrthogonally[square][piece.square]) {
-          continue;
-        }
-
-        if (piece.type === PieceType.BISHOP && !Game.isAlignedDiagonally[square][piece.square]) {
-          continue;
-        }
-
-        if (piece.type === PieceType.QUEEN && !Game.isAligned[square][piece.square]) {
-          continue;
-        }
-
-        if (!this.isDirectionBlocked(piece.square, square)) {
+        if (Game.isPieceAligned[square][piece.square][piece.type] && !this.isDirectionBlocked(piece.square, square)) {
           return true;
         }
       }
@@ -736,10 +724,7 @@ export default class Game extends Utils {
       }
     } else if (checkingPieceType !== PieceType.KING) {
       if (
-        (
-          ((checkingPieceType === PieceType.BISHOP || checkingPieceType === PieceType.QUEEN) && Game.isAlignedDiagonally[to][opponentKingSquare])
-          || ((checkingPieceType === PieceType.ROOK || checkingPieceType === PieceType.QUEEN) && Game.isAlignedOrthogonally[possibleNormalCheckingPiece.square][opponentKingSquare])
-        )
+        Game.isPieceAligned[possibleNormalCheckingPiece.square][opponentKingSquare][checkingPieceType]
         && (!Game.isOnOneLine[from][to][opponentKingSquare] || capturedPiece || castlingRook || promotion)
       ) {
         isNormalCheck = !this.isDirectionBlocked(possibleNormalCheckingPiece.square, opponentKingSquare);
