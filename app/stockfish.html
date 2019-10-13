@@ -4,30 +4,75 @@
   <meta charset="UTF-8">
   <title>Title</title>
   <script>
-    const stockfish = new Worker('../node_modules/stockfish/src/stockfish.js');
     const map = {};
+    const fen = '8/p3p3/3k4/3P1p2/8/8/5B2/K7 w - -';
+    const mode = 'FULL_DEPTH';
+    // const mode = 'ONLY_DEPTH';
+    const depth = 6;
 
-    stockfish.onmessage = ({ data }) => {
-      const match = data.match(/^([a-h1-8]{4}[qnbr]?): (\d+)/);
+    if (mode === 'FULL_DEPTH') {
+      const goDepth = (depth) => {
+        return new Promise((resolve) => {
+          const stockfish = new Worker('../node_modules/stockfish/src/stockfish.js');
 
-      if (match) {
-        map[match[1]] = +match[2];
-      }
+          stockfish.onmessage = ({ data }) => {
+            const nodesCountMatch = data.match(/^Nodes searched: (\d+)/);
 
-      if (!data) {
-        console.log(JSON.stringify(map, null, 2));
-      }
+            if (nodesCountMatch) {
+              resolve(+nodesCountMatch[1]);
+            }
+          };
 
-      const nodesCountMatch = data.match(/^Nodes searched: \d+/);
+          stockfish.postMessage(`position fen ${fen}`);
+          stockfish.postMessage('d');
+          stockfish.postMessage(`go perft ${depth}`);
+        });
+      };
 
-      if (nodesCountMatch) {
-        console.log(data);
-      }
-    };
+      (async () => {
+        console.log(
+          '[' + (
+            await Promise.all(
+              new Array(depth).fill(0).map((_, depth) => goDepth(depth + 1))
+            )
+          )
+            .map((res) => (
+              [
+                ...[...res.toString()]
+                  .reverse()
+                  .join('')
+                  .replace(/\d\d\d/g, '$&_')
+                  .replace(/_$/, '')
+              ].reverse().join('')
+            ))
+            .join(', ') + ']'
+        );
+      })();
+    } else {
+      const stockfish = new Worker('../node_modules/stockfish/src/stockfish.js');
 
-    stockfish.postMessage('position fen r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/P2P1RPP/Q5K1 b kq - 0 2');
-    stockfish.postMessage('d');
-    stockfish.postMessage('go perft 1');
+      stockfish.onmessage = ({ data }) => {
+        const match = data.match(/^([a-h1-8]{4}[qnbr]?): (\d+)/);
+
+        if (match) {
+          map[match[1]] = +match[2];
+        }
+
+        if (!data) {
+          console.log(JSON.stringify(map, null, 2));
+        }
+
+        const nodesCountMatch = data.match(/^Nodes searched: \d+/);
+
+        if (nodesCountMatch) {
+          console.log(data);
+        }
+      };
+
+      stockfish.postMessage(`position fen ${fen}`);
+      stockfish.postMessage('d');
+      stockfish.postMessage(`go perft ${depth}`);
+    }
   </script>
 </head>
 <body>

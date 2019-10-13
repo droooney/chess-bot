@@ -1,3 +1,5 @@
+// https://www.chessprogramming.org/Perft_Results
+
 import 'colors';
 
 import Game from './Game';
@@ -41,6 +43,22 @@ const tests = [
   {
     initialFen: 'rnbq1k1r/pp1P1ppp/2p5/8/2B4b/P7/1PP1NnPP/RNBQK2R w KQ - 1 9',
     nodeCounts: [42, 1_432, 51_677, 1_747_286]
+  },
+  {
+    initialFen: '3b4/2P5/8/8/8/2n5/8/2k1K2R w K -',
+    nodeCounts: [20, 268, 5_464, 69_692, 1_490_361]
+  },
+  {
+    initialFen: '6b1/5P2/8/8/3n1k2/8/8/4K2R w K -',
+    nodeCounts: [22, 325, 6_839, 96_270, 2_148_378]
+  },
+  {
+    initialFen: '8/p3p3/1b1k4/3P1p2/8/8/1n3B2/2KR4 w - -',
+    nodeCounts: [19, 326, 5_853, 99_157, 1_905_025]
+  },
+  {
+    initialFen: '8/p3p3/3k4/3P1p2/8/8/5B2/K7 w - -',
+    nodeCounts: [12, 99, 1_262, 11_208, 150_846, 1_366_710]
   }
 ];
 // let calculateLegalMovesTime = 0;
@@ -59,6 +77,8 @@ if (checkPosition) {
 
       if (nodes !== expected) {
         console.log(`invalid nodes count. fen: ${initialFen.blue.bold}, expected ${`${expected}`.green.bold}, got ${`${nodes}`.red.bold}`);
+
+        process.exit(1);
       }
     }
   });

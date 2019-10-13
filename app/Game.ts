@@ -726,30 +726,32 @@ export default class Game extends Utils {
     let isCheck = false;
     let isNormalCheck = false;
     let isDiscoveredCheck = false;
+    let isEnPassantDiscoveredCheck = false;
     const opponentKingSquare = this.kings[opponentColor].square;
-    const newPieceType = piece.type;
+    const possibleNormalCheckingPiece = castlingRook || piece;
+    const checkingPieceType = possibleNormalCheckingPiece.type;
 
-    if (newPieceType === PieceType.KNIGHT || newPieceType === PieceType.PAWN) {
+    if (checkingPieceType === PieceType.KNIGHT || checkingPieceType === PieceType.PAWN) {
       isCheck = isNormalCheck = (
-        newPieceType === PieceType.KNIGHT
+        checkingPieceType === PieceType.KNIGHT
           ? Game.knightAttacksSet[to]
           : Game.pawnAttacksSet[pieceColor][to]
       ).has(opponentKingSquare);
 
       if (isCheck) {
-        checkingPiece = piece;
+        checkingPiece = possibleNormalCheckingPiece;
       }
-    } else if (newPieceType !== PieceType.KING) {
+    } else if (checkingPieceType !== PieceType.KING) {
       if (
         (
-          ((newPieceType === PieceType.BISHOP || newPieceType === PieceType.QUEEN) && Game.isAlignedDiagonally[to][opponentKingSquare])
-          || ((newPieceType === PieceType.ROOK || newPieceType === PieceType.QUEEN) && Game.isAlignedOrthogonally[to][opponentKingSquare])
+          ((checkingPieceType === PieceType.BISHOP || checkingPieceType === PieceType.QUEEN) && Game.isAlignedDiagonally[to][opponentKingSquare])
+          || ((checkingPieceType === PieceType.ROOK || checkingPieceType === PieceType.QUEEN) && Game.isAlignedOrthogonally[possibleNormalCheckingPiece.square][opponentKingSquare])
         )
-        && (!Game.isOnOneLine[from][to][opponentKingSquare] || capturedPiece)
+        && (!Game.isOnOneLine[from][to][opponentKingSquare] || capturedPiece || castlingRook || promotion)
       ) {
         isNormalCheck = true;
 
-        const middleSquares = Game.middleSquares[to][opponentKingSquare];
+        const middleSquares = Game.middleSquares[possibleNormalCheckingPiece.square][opponentKingSquare];
 
         for (let i = 0; i < middleSquares.length; i++) {
           if (this.board[middleSquares[i]]) {
@@ -761,7 +763,7 @@ export default class Game extends Utils {
 
         if (isNormalCheck) {
           isCheck = true;
-          checkingPiece = piece;
+          checkingPiece = possibleNormalCheckingPiece;
         }
       }
     }
@@ -773,6 +775,7 @@ export default class Game extends Utils {
         || (Game.isAlignedOrthogonally[from][opponentKingSquare] && pieceType !== PieceType.ROOK)
       )
       && !Game.isOnOneLine[from][to][opponentKingSquare]
+      && !castlingRook
     ) {
       const behindSquares = Game.behindSquares[from][opponentKingSquare];
       const sliders = Game.isAlignedDiagonally[from][opponentKingSquare]
@@ -812,11 +815,47 @@ export default class Game extends Utils {
       }
     }
 
+    if (!isNormalCheck && isEnPassantCapture && Game.isAlignedDiagonally[opponentKingSquare][capturedPiece!.square]) {
+      const behindSquares = Game.behindSquares[capturedPiece!.square][opponentKingSquare];
+      let sliderBehind;
+
+      for (let i = 0; i < behindSquares.length; i++) {
+        const behindPiece = this.board[behindSquares[i]];
+
+        if (behindPiece) {
+          if (behindPiece.color === pieceColor && behindPiece.type in Game.diagonalSliders) {
+            sliderBehind = behindPiece;
+          }
+
+          break;
+        }
+      }
+
+      if (sliderBehind) {
+        isEnPassantDiscoveredCheck = true;
+
+        const middleSquares = Game.middleSquares[from][opponentKingSquare];
+
+        for (let i = 0; i < middleSquares.length; i++) {
+          if (this.board[middleSquares[i]]) {
+            isEnPassantDiscoveredCheck = false;
+
+            break;
+          }
+        }
+
+        if (isEnPassantDiscoveredCheck) {
+          isCheck = true;
+          checkingPiece = sliderBehind;
+        }
+      }
+    }
+
     const prevPositionCount = this.positions.get(this.positionKey) || 0;
 
     this.turn = opponentColor;
     this.isCheck = isCheck;
-    this.isDoubleCheck = isNormalCheck && isDiscoveredCheck;
+    this.isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
     this.checkingPiece = checkingPiece;
     this.positions.set(this.positionKey, prevPositionCount + 1);
 
