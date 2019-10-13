@@ -419,6 +419,11 @@ export default class Utils {
       === Math.abs((square1 & 7) - (square2 & 7))
     ))
   ));
+  static isAligned: boolean[][] = Utils.allSquares.map((square1) => (
+    Utils.allSquares.map((square2) => (
+      Utils.isAlignedOrthogonally[square1][square2] || Utils.isAlignedDiagonally[square1][square2]
+    ))
+  ));
   static isOnOneLine: boolean[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => (
       Utils.allSquares.map((square3) => (
@@ -429,10 +434,7 @@ export default class Utils {
   ));
   static middleSquares: number[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => {
-      if (
-        !Utils.isAlignedOrthogonally[square1][square2]
-        && !Utils.isAlignedDiagonally[square1][square2]
-      ) {
+      if (square1 === square2 || !Utils.isAligned[square1][square2]) {
         return [];
       }
 
@@ -459,20 +461,14 @@ export default class Utils {
   ));
   static behindSquares: number[][][] = Utils.allSquares.map((square1) => (
     Utils.allSquares.map((square2) => {
-      if (
-        square1 === square2
-        || (
-          !Utils.isAlignedOrthogonally[square1][square2]
-          && !Utils.isAlignedDiagonally[square1][square2]
-        )
-      ) {
+      if (square1 === square2 || !Utils.isAligned[square1][square2]) {
         return [];
       }
 
-      const incrementX = Math.sign((square1 & 7) - (square2 & 7));
-      const incrementY = Math.sign((square1 >> 3) - (square2 >> 3));
+      const incrementX = Math.sign((square2 & 7) - (square1 & 7));
+      const incrementY = Math.sign((square2 >> 3) - (square1 >> 3));
 
-      return Utils.traverseDirection(square1, incrementX, incrementY, false);
+      return Utils.traverseDirection(square2, incrementX, incrementY, false);
     })
   ));
   static behindAndMiddleSquaresSet: Set<number>[][] = Utils.allSquares.map((square1) => (

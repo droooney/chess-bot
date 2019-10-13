@@ -171,46 +171,16 @@ export default class Game extends Utils {
     let pinnedDirection;
     let pinnedDirectionSquaresSet: Set<number> | null = null;
 
-    if (Game.isAlignedOrthogonally[piece.square][kingSquare] || Game.isAlignedDiagonally[piece.square][kingSquare]) {
-      const behindSquares = Game.behindSquares[piece.square][kingSquare];
-      const sliders = Game.isAlignedDiagonally[piece.square][kingSquare]
-        ? Game.diagonalSliders
-        : Game.orthogonalSliders;
-      let sliderBehind;
+    if (Game.isAligned[piece.square][kingSquare] && this.getSliderBehind(kingSquare, piece.square, opponentColor)) {
+      isPinned = !this.isDirectionBlocked(piece.square, kingSquare);
 
-      for (let i = 0; i < behindSquares.length; i++) {
-        const behindPiece = this.board[behindSquares[i]];
-
-        if (behindPiece) {
-          if (behindPiece.color === opponentColor && behindPiece.type in sliders) {
-            sliderBehind = behindPiece;
-          }
-
-          break;
-        }
-      }
-
-      if (sliderBehind) {
-        isPinned = true;
-
-        const middleSquares = Game.middleSquares[piece.square][kingSquare];
-
-        for (let i = 0; i < middleSquares.length; i++) {
-          if (this.board[middleSquares[i]]) {
-            isPinned = false;
-
-            break;
-          }
-        }
-
-        if (isPinned) {
-          pinnedDirection = Game.isAlignedDiagonally[piece.square][kingSquare]
-            ? PinnedDirection.DIAGONAL
-            : Game.squareRanks[piece.square] === Game.squareRanks[kingSquare]
-              ? PinnedDirection.HORIZONTAL
-              : PinnedDirection.VERTICAL;
-          pinnedDirectionSquaresSet = Game.behindAndMiddleSquaresSet[piece.square][kingSquare];
-        }
+      if (isPinned) {
+        pinnedDirection = Game.isAlignedDiagonally[piece.square][kingSquare]
+          ? PinnedDirection.DIAGONAL
+          : Game.squareRanks[piece.square] === Game.squareRanks[kingSquare]
+            ? PinnedDirection.HORIZONTAL
+            : PinnedDirection.VERTICAL;
+        pinnedDirectionSquaresSet = Game.behindAndMiddleSquaresSet[kingSquare][piece.square];
       }
     }
 
@@ -436,6 +406,27 @@ export default class Game extends Utils {
     return moves;
   }
 
+  getSliderBehind(square1: number, square2: number, color: Color): Piece | null {
+    const behindSquares = Game.behindSquares[square1][square2];
+    const sliders = Game.isAlignedDiagonally[square1][square2]
+      ? Game.diagonalSliders
+      : Game.orthogonalSliders;
+
+    for (let i = 0; i < behindSquares.length; i++) {
+      const behindPiece = this.board[behindSquares[i]];
+
+      if (behindPiece) {
+        if (behindPiece.color === color && behindPiece.type in sliders) {
+          return behindPiece;
+        }
+
+        break;
+      }
+    }
+
+    return null;
+  }
+
   isControlledByOpponentPawn(square: number, color: Color): boolean {
     const opponentColor = Game.oppositeColor[color];
     const attackingPawnSquares = Game.pawnAttacks[color][square];
@@ -446,6 +437,18 @@ export default class Game extends Utils {
       (!!leftPawn && leftPawn.type === PieceType.PAWN && leftPawn.color === opponentColor)
       || (!!rightPawn && rightPawn.type === PieceType.PAWN && rightPawn.color === opponentColor)
     );
+  }
+
+  isDirectionBlocked(square1: number, square2: number): boolean {
+    const middleSquares = Game.middleSquares[square1][square2];
+
+    for (let i = 0, l = middleSquares.length; i < l; i++) {
+      if (this.board[middleSquares[i]]) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   isEndgame(): boolean {
@@ -542,7 +545,7 @@ export default class Game extends Utils {
     const pieces = this.pieces[opponentColor];
     const pieceCount = this.pieceCounts[opponentColor];
 
-    pieces: for (let i = 0; i < pieceCount; i++) {
+    for (let i = 0; i < pieceCount; i++) {
       const piece = pieces[i];
 
       if (piece.type === PieceType.KING || piece.type === PieceType.KNIGHT || piece.type === PieceType.PAWN) {
@@ -566,23 +569,13 @@ export default class Game extends Utils {
           continue;
         }
 
-        if (
-          piece.type === PieceType.QUEEN
-          && !Game.isAlignedOrthogonally[square][piece.square]
-          && !Game.isAlignedDiagonally[square][piece.square]
-        ) {
+        if (piece.type === PieceType.QUEEN && !Game.isAligned[square][piece.square]) {
           continue;
         }
 
-        const middleSquares = Game.middleSquares[piece.square][square];
-
-        for (let i = 0, l = middleSquares.length; i < l; i++) {
-          if (this.board[middleSquares[i]]) {
-            continue pieces;
-          }
+        if (!this.isDirectionBlocked(piece.square, square)) {
+          return true;
         }
-
-        return true;
       }
     }
 
@@ -749,17 +742,7 @@ export default class Game extends Utils {
         )
         && (!Game.isOnOneLine[from][to][opponentKingSquare] || capturedPiece || castlingRook || promotion)
       ) {
-        isNormalCheck = true;
-
-        const middleSquares = Game.middleSquares[possibleNormalCheckingPiece.square][opponentKingSquare];
-
-        for (let i = 0; i < middleSquares.length; i++) {
-          if (this.board[middleSquares[i]]) {
-            isNormalCheck = false;
-
-            break;
-          }
-        }
+        isNormalCheck = !this.isDirectionBlocked(possibleNormalCheckingPiece.square, opponentKingSquare);
 
         if (isNormalCheck) {
           isCheck = true;
@@ -777,36 +760,10 @@ export default class Game extends Utils {
       && !Game.isOnOneLine[from][to][opponentKingSquare]
       && !castlingRook
     ) {
-      const behindSquares = Game.behindSquares[from][opponentKingSquare];
-      const sliders = Game.isAlignedDiagonally[from][opponentKingSquare]
-        ? Game.diagonalSliders
-        : Game.orthogonalSliders;
-      let sliderBehind;
-
-      for (let i = 0; i < behindSquares.length; i++) {
-        const behindPiece = this.board[behindSquares[i]];
-
-        if (behindPiece) {
-          if (behindPiece.color === pieceColor && behindPiece.type in sliders) {
-            sliderBehind = behindPiece;
-          }
-
-          break;
-        }
-      }
+      const sliderBehind = this.getSliderBehind(opponentKingSquare, from, pieceColor);
 
       if (sliderBehind) {
-        isDiscoveredCheck = true;
-
-        const middleSquares = Game.middleSquares[from][opponentKingSquare];
-
-        for (let i = 0; i < middleSquares.length; i++) {
-          if (this.board[middleSquares[i]]) {
-            isDiscoveredCheck = false;
-
-            break;
-          }
-        }
+        isDiscoveredCheck = !this.isDirectionBlocked(from, opponentKingSquare);
 
         if (isDiscoveredCheck) {
           isCheck = true;
@@ -816,33 +773,10 @@ export default class Game extends Utils {
     }
 
     if (!isNormalCheck && isEnPassantCapture && Game.isAlignedDiagonally[opponentKingSquare][capturedPiece!.square]) {
-      const behindSquares = Game.behindSquares[capturedPiece!.square][opponentKingSquare];
-      let sliderBehind;
-
-      for (let i = 0; i < behindSquares.length; i++) {
-        const behindPiece = this.board[behindSquares[i]];
-
-        if (behindPiece) {
-          if (behindPiece.color === pieceColor && behindPiece.type in Game.diagonalSliders) {
-            sliderBehind = behindPiece;
-          }
-
-          break;
-        }
-      }
+      const sliderBehind = this.getSliderBehind(opponentKingSquare, capturedPiece!.square, pieceColor);
 
       if (sliderBehind) {
-        isEnPassantDiscoveredCheck = true;
-
-        const middleSquares = Game.middleSquares[from][opponentKingSquare];
-
-        for (let i = 0; i < middleSquares.length; i++) {
-          if (this.board[middleSquares[i]]) {
-            isEnPassantDiscoveredCheck = false;
-
-            break;
-          }
-        }
+        isEnPassantDiscoveredCheck = !this.isDirectionBlocked(capturedPiece!.square, opponentKingSquare);
 
         if (isEnPassantDiscoveredCheck) {
           isCheck = true;
