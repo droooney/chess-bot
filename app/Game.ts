@@ -166,8 +166,10 @@ export default class Game extends Utils {
 
     const kingSquare = this.kings[this.turn].square;
     const opponentColor = Game.oppositeColor[piece.color];
+    const isPawn = piece.type === PieceType.PAWN;
 
     let isPinned = false;
+    let isEnPassantPinned = false;
     let pinnedDirection;
     let pinnedDirectionSquaresSet: Set<number> | null = null;
 
@@ -182,6 +184,19 @@ export default class Game extends Utils {
             : PinnedDirection.VERTICAL;
         pinnedDirectionSquaresSet = Game.behindAndMiddleSquaresSet[kingSquare][piece.square];
       }
+    }
+
+    if (!isPinned && isPawn && this.possibleEnPassant && Game.pawnAttacksSet[piece.color][piece.square].has(this.possibleEnPassant)) {
+      const capturedPawn = this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]]!;
+
+      this.board[capturedPawn.square] = null;
+
+      isEnPassantPinned = (
+        !!this.getSliderBehind(kingSquare, piece.square, opponentColor)
+        && !this.isDirectionBlocked(piece.square, kingSquare)
+      );
+
+      this.board[capturedPawn.square] = capturedPawn;
     }
 
     if (isPinned && this.isCheck) {
@@ -210,26 +225,31 @@ export default class Game extends Utils {
     }
 
     const possibleMoves = this.getPseudoLegalMoves(piece);
-    const isPawn = piece.type === PieceType.PAWN;
     const isNoCheckAndNotPinned = !this.isCheck && !isKing && !isPinned;
 
-    if (isNoCheckAndNotPinned && (!isPawn || !this.possibleEnPassant)) {
+    if (isNoCheckAndNotPinned && (!isPawn || !isEnPassantPinned)) {
       return possibleMoves;
     }
 
     const legalMoves: number[] = [];
     const prevSquare = piece.square;
-    const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
 
     this.board[prevSquare] = null;
 
     for (let i = 0, l = possibleMoves.length; i < l; i++) {
       const square = possibleMoves[i];
+      const isEnPassantCapture = isPawn && this.possibleEnPassant && square === this.possibleEnPassant;
 
-      if (this.isCheck && !isKing && (!isPawn || square !== this.possibleEnPassant)) {
+      if (isEnPassantCapture && isEnPassantPinned) {
+        continue;
+      }
+
+      if (this.isCheck && !isKing) {
+        const capturedPieceSquare = isEnPassantCapture ? Game.pawnEnPassantPieceSquares[square] : square;
+
         if (
           // not capturing checking piece
-          square !== this.checkingPiece!.square
+          capturedPieceSquare !== (this.checkingPiece!.square)
           && (
             // and not blocking slider checker
             !(this.checkingPiece!.type in Game.sliders)
@@ -240,7 +260,7 @@ export default class Game extends Utils {
         }
       }
 
-      if (!isKing && (!isPawn || square !== this.possibleEnPassant)) {
+      if (!isKing) {
         if (!isPinned || pinnedDirectionSquaresSet!.has(square)) {
           legalMoves.push(square);
 
@@ -252,9 +272,7 @@ export default class Game extends Utils {
         continue;
       }
 
-      const capturedPiece = isPawn && square === this.possibleEnPassant
-        ? enPassantCapturedPawn
-        : this.board[square];
+      const capturedPiece = this.board[square];
 
       if (capturedPiece) {
         const opponentPieces = this.pieces[opponentColor];
