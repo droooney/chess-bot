@@ -535,6 +535,68 @@ export default class Game extends Utils {
 
   isSquareAttacked(square: number): boolean {
     const opponentColor = Game.oppositeColor[this.turn];
+
+    if (Game.kingAttacksSet[this.kings[opponentColor].square].has(square)) {
+      return true;
+    }
+
+    const pawnAttacks = Game.pawnAttacks[this.turn][square];
+
+    for (let i = 0; i < pawnAttacks.length; i++) {
+      const pieceInSquare = this.board[pawnAttacks[i]];
+
+      if (pieceInSquare && pieceInSquare.color === opponentColor && pieceInSquare.type === PieceType.PAWN) {
+        return true;
+      }
+    }
+
+    const knightAttacks = Game.knightMoves[square];
+
+    for (let i = 0; i < knightAttacks.length; i++) {
+      const pieceInSquare = this.board[knightAttacks[i]];
+
+      if (pieceInSquare && pieceInSquare.color === opponentColor && pieceInSquare.type === PieceType.KNIGHT) {
+        return true;
+      }
+    }
+
+    const bishopDirections = Game.slidingAttacks[PieceType.BISHOP][square];
+
+    for (let i = 0; i < bishopDirections.length; i++) {
+      const direction = bishopDirections[i];
+
+      for (let i = 0; i < direction.length; i++) {
+        const pieceInSquare = this.board[direction[i]];
+
+        if (pieceInSquare) {
+          if (pieceInSquare.color === opponentColor && (pieceInSquare.type === PieceType.BISHOP || pieceInSquare.type === PieceType.QUEEN)) {
+            return true;
+          }
+
+          break;
+        }
+      }
+    }
+
+    const rookDirections = Game.slidingAttacks[PieceType.ROOK][square];
+
+    for (let i = 0; i < rookDirections.length; i++) {
+      const direction = rookDirections[i];
+
+      for (let i = 0; i < direction.length; i++) {
+        const pieceInSquare = this.board[direction[i]];
+
+        if (pieceInSquare) {
+          if (pieceInSquare.color === opponentColor && (pieceInSquare.type === PieceType.ROOK || pieceInSquare.type === PieceType.QUEEN)) {
+            return true;
+          }
+
+          break;
+        }
+      }
+    }
+
+    /*
     const pieces = this.pieces[opponentColor];
     const pieceCount = this.pieceCounts[opponentColor];
 
@@ -559,6 +621,7 @@ export default class Game extends Utils {
         }
       }
     }
+    */
 
     return false;
   }

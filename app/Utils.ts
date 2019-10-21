@@ -288,7 +288,7 @@ export default class Utils {
       const x = square & 7;
       const y = square >> 3;
 
-      return y === 0 || y === 7
+      return y === 7
         ? []
         : [Utils.squares[y + 1][x + 1], Utils.squares[y + 1][x - 1]].filter((square) => square !== undefined);
     }),
@@ -296,7 +296,7 @@ export default class Utils {
       const x = square & 7;
       const y = square >> 3;
 
-      return y === 0 || y === 7
+      return y === 0
         ? []
         : [Utils.squares[y - 1][x + 1], Utils.squares[y - 1][x - 1]].filter((square) => square !== undefined);
     })
