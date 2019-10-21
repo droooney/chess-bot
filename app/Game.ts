@@ -184,6 +184,10 @@ export default class Game extends Utils {
       }
     }
 
+    if (isPinned && this.isCheck) {
+      return [];
+    }
+
     if (
       isPinned
       && (
@@ -216,22 +220,11 @@ export default class Game extends Utils {
     const legalMoves: number[] = [];
     const prevSquare = piece.square;
     const enPassantCapturedPawn = this.possibleEnPassant && this.board[Game.pawnEnPassantPieceSquares[this.possibleEnPassant]];
-    const isAlmostLegalPawnMove = isNoCheckAndNotPinned && isPawn;
 
     this.board[prevSquare] = null;
 
     for (let i = 0, l = possibleMoves.length; i < l; i++) {
       const square = possibleMoves[i];
-
-      if (isAlmostLegalPawnMove && square !== this.possibleEnPassant) {
-        legalMoves.push(square);
-
-        if (stopAfter1) {
-          break;
-        }
-
-        continue;
-      }
 
       if (this.isCheck && !isKing && (!isPawn || square !== this.possibleEnPassant)) {
         if (
@@ -248,7 +241,7 @@ export default class Game extends Utils {
       }
 
       if (!isKing && (!isPawn || square !== this.possibleEnPassant)) {
-        if (!isPinned || (pinnedDirectionSquaresSet && pinnedDirectionSquaresSet.has(square))) {
+        if (!isPinned || pinnedDirectionSquaresSet!.has(square)) {
           legalMoves.push(square);
 
           if (stopAfter1) {
