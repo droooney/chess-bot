@@ -505,32 +505,6 @@ export default class Utils {
   static pieceSquareTables: Record<Color, Record<PieceType, [number[], number[]]>> = [
     [
       [
-        pieceSquareTables[PieceType.KING],
-        kingEndgameSquareTable
-      ],
-      [
-        pieceSquareTables[PieceType.QUEEN],
-        pieceSquareTables[PieceType.QUEEN]
-      ],
-      [
-        pieceSquareTables[PieceType.ROOK],
-        pieceSquareTables[PieceType.ROOK]
-      ],
-      [
-        pieceSquareTables[PieceType.BISHOP],
-        pieceSquareTables[PieceType.BISHOP]
-      ],
-      [
-        pieceSquareTables[PieceType.KNIGHT],
-        pieceSquareTables[PieceType.KNIGHT]
-      ],
-      [
-        pieceSquareTables[PieceType.PAWN],
-        pieceSquareTables[PieceType.PAWN]
-      ]
-    ],
-    [
-      [
         Utils.invertPieceSquareTable(pieceSquareTables[PieceType.KING]),
         Utils.invertPieceSquareTable(kingEndgameSquareTable)
       ],
@@ -553,6 +527,32 @@ export default class Utils {
       [
         Utils.invertPieceSquareTable(pieceSquareTables[PieceType.PAWN]),
         Utils.invertPieceSquareTable(pieceSquareTables[PieceType.PAWN])
+      ]
+    ],
+    [
+      [
+        pieceSquareTables[PieceType.KING],
+        kingEndgameSquareTable
+      ],
+      [
+        pieceSquareTables[PieceType.QUEEN],
+        pieceSquareTables[PieceType.QUEEN]
+      ],
+      [
+        pieceSquareTables[PieceType.ROOK],
+        pieceSquareTables[PieceType.ROOK]
+      ],
+      [
+        pieceSquareTables[PieceType.BISHOP],
+        pieceSquareTables[PieceType.BISHOP]
+      ],
+      [
+        pieceSquareTables[PieceType.KNIGHT],
+        pieceSquareTables[PieceType.KNIGHT]
+      ],
+      [
+        pieceSquareTables[PieceType.PAWN],
+        pieceSquareTables[PieceType.PAWN]
       ]
     ]
   ];

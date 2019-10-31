@@ -313,7 +313,7 @@ export default class Bot extends Game {
       const rank = Bot.squareRanks[piece.square];
 
       // piece-square tables
-      score += 2 * Bot.pieceSquareTables[color][piece.type][+isEndgame][piece.square];
+      score += 10 * Bot.pieceSquareTables[color][piece.type][+isEndgame][piece.square];
 
       // development
       score += (
@@ -637,7 +637,7 @@ export default class Bot extends Game {
     let score: number = 0;
 
     if (promotion) {
-      score += 100 * Bot.piecesWorth[promotion];
+      score += 1000 * Bot.piecesWorth[promotion];
     }
 
     const opponentColor = Bot.oppositeColor[this.turn];
@@ -649,14 +649,14 @@ export default class Bot extends Game {
       const fromPieceWorth = Bot.piecesWorth[piece.type];
       const toPieceWorth = Bot.piecesWorth[toPiece.type];
 
-      score += 5 * (20 + toPieceWorth - fromPieceWorth);
+      score += 1000 * (16 + toPieceWorth - fromPieceWorth);
     }
 
     if (piece.type < PieceType.PAWN && piece.type > PieceType.KING) {
       const isFromControlledByPawn = this.isControlledByOpponentPawn(from, this.turn);
       const isToControlledByPawn = this.isControlledByOpponentPawn(to, this.turn);
 
-      score += (isFromControlledByPawn ? 50 : 0) + (isToControlledByPawn ? -100 : 0);
+      score += (isFromControlledByPawn ? 1000 : 0) + (isToControlledByPawn ? -2000 : 0);
     }
 
     if (piece.type === PieceType.PAWN) {
@@ -666,14 +666,14 @@ export default class Bot extends Game {
 
       if (leftTarget && leftTarget.color === opponentColor && leftTarget.type < PieceType.PAWN) {
         score += leftTarget.type === PieceType.KING
-          ? 10
-          : Bot.piecesWorth[leftTarget.type] * 1.5;
+          ? 100
+          : Bot.piecesWorth[leftTarget.type] * 10;
       }
 
       if (rightTarget && rightTarget.color === opponentColor && rightTarget.type < PieceType.PAWN) {
         score += rightTarget.type === PieceType.KING
-          ? 10
-          : Bot.piecesWorth[rightTarget.type] * 1.5;
+          ? 100
+          : Bot.piecesWorth[rightTarget.type] * 10;
       }
     } else if (piece.type === PieceType.KNIGHT) {
       const attacks = Bot.knightMoves[to];
@@ -683,7 +683,7 @@ export default class Bot extends Game {
         const pieceInSquare = this.board[square];
 
         if (pieceInSquare && pieceInSquare.color === opponentColor && pieceInSquare.type < PieceType.ROOK) {
-          score += 10;
+          score += 200;
         }
       }
     } else if (piece.type === PieceType.ROOK || piece.type === PieceType.BISHOP) {
@@ -694,11 +694,11 @@ export default class Bot extends Game {
           ? Bot.isAlignedOrthogonally[to][opponentKingSquare]
           : Bot.isAlignedDiagonally[to][opponentKingSquare]
       ) {
-        score += 5;
+        score += 50;
       }
     }
 
-    score += 2 * (Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][to] - Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][from]);
+    score += 10 * (Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][to] - Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][from]);
 
     return -score;
   };

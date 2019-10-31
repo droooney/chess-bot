@@ -37,13 +37,15 @@
             )
           )
             .map((res) => (
-              [
-                ...[...res.toString()]
-                  .reverse()
-                  .join('')
-                  .replace(/\d\d\d/g, '$&_')
-                  .replace(/_$/, '')
-              ].reverse().join('')
+              res.toString()
+                .split('')
+                .reverse()
+                .join('')
+                .replace(/\d\d\d/g, '$&_')
+                .replace(/_$/, '')
+                .split('')
+                .reverse()
+                .join('')
             ))
             .join(', ') + ']'
         );
