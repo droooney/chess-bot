@@ -17,7 +17,7 @@ interface MoveScore {
 }
 
 export default class Bot extends Game {
-  static SEARCH_DEPTH = 2 * 2;
+  static SEARCH_DEPTH = 3 * 2;
   static OPTIMAL_MOVE_THRESHOLD = 50;
   static MATE_SCORE = 1e7;
 
