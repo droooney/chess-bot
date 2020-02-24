@@ -646,10 +646,10 @@ export default class Bot extends Game {
     const toPiece = this.board[to];
 
     if (toPiece) {
-      const fromPieceWorth = Bot.piecesWorth[piece.type];
+      // const fromPieceWorth = Bot.piecesWorth[piece.type];
       const toPieceWorth = Bot.piecesWorth[toPiece.type];
 
-      score += 1000 * (16 + toPieceWorth - fromPieceWorth);
+      score += 1000 * toPieceWorth;
     }
 
     if (piece.type < PieceType.PAWN && piece.type > PieceType.KING) {
@@ -667,13 +667,13 @@ export default class Bot extends Game {
       if (leftTarget && leftTarget.color === opponentColor && leftTarget.type < PieceType.PAWN) {
         score += leftTarget.type === PieceType.KING
           ? 100
-          : Bot.piecesWorth[leftTarget.type] * 10;
+          : Bot.piecesWorth[leftTarget.type] * 100;
       }
 
       if (rightTarget && rightTarget.color === opponentColor && rightTarget.type < PieceType.PAWN) {
         score += rightTarget.type === PieceType.KING
           ? 100
-          : Bot.piecesWorth[rightTarget.type] * 10;
+          : Bot.piecesWorth[rightTarget.type] * 100;
       }
     } else if (piece.type === PieceType.KNIGHT) {
       const attacks = Bot.knightMoves[to];
@@ -682,19 +682,11 @@ export default class Bot extends Game {
         const square = attacks[i];
         const pieceInSquare = this.board[square];
 
-        if (pieceInSquare && pieceInSquare.color === opponentColor && pieceInSquare.type < PieceType.ROOK) {
-          score += 200;
+        if (pieceInSquare && pieceInSquare.color === opponentColor && pieceInSquare.type < PieceType.BISHOP) {
+          score += pieceInSquare.type === PieceType.KING
+            ? 100
+            : Bot.piecesWorth[pieceInSquare.type] * 50;
         }
-      }
-    } else if (piece.type === PieceType.ROOK || piece.type === PieceType.BISHOP) {
-      const opponentKingSquare = this.kings[opponentColor].square;
-
-      if (
-        piece.type === PieceType.ROOK
-          ? Bot.isAlignedOrthogonally[to][opponentKingSquare]
-          : Bot.isAlignedDiagonally[to][opponentKingSquare]
-      ) {
-        score += 50;
       }
     }
 
