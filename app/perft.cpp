@@ -69,6 +69,10 @@ vector<PerfTest> tests = {
   }
 };
 
+long long int calculateLegalMovesTime = 0LL;
+long long int performMoveTime = 0LL;
+long long int revertMoveTime = 0LL;
+
 int perft::perft(string initialFen, int depth, bool useMap) {
   auto timestamp = high_resolution_clock::now();
   Game game = Game(initialFen, "");
@@ -79,15 +83,28 @@ int perft::perft(string initialFen, int depth, bool useMap) {
 
     int nodes = 0;
 
+    auto timestamp = high_resolution_clock::now();
+
     vector<Move> legalMoves = game.getAllLegalMoves();
 
+    calculateLegalMovesTime += duration_cast<nanoseconds>(high_resolution_clock::now() - timestamp).count();
+
     for (auto &move : legalMoves) {
+      auto timestamp = high_resolution_clock::now();
+
       MoveInfo moveInfo = game.performMove(move);
+
+      performMoveTime += duration_cast<nanoseconds>(high_resolution_clock::now() - timestamp).count();
+
       int moveNodes = calculateNodes(depth - 1);
 
       nodes += moveNodes;
 
+      timestamp = high_resolution_clock::now();
+
       game.revertMove(&moveInfo);
+
+      revertMoveTime += duration_cast<nanoseconds>(high_resolution_clock::now() - timestamp).count();
 
       if (useMap && depth == DEPTH) {
         string uci = gameUtils::moveToUci(move);
@@ -171,4 +188,7 @@ void perft::perftMain() {
   auto duration = duration_cast<nanoseconds>(time - timestamp).count();
 
   cout << "test took " << duration / 1e6 << "ms" << endl;
+  cout << "calculateLegalMoves took " << calculateLegalMovesTime / 1e6 << " ms" << endl;
+  cout << "performMove took " << performMoveTime / 1e6 << " ms" << endl;
+  cout << "revertMove took " << revertMoveTime / 1e6 << " ms" << endl;
 }
