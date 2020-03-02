@@ -41,6 +41,10 @@ enum Castling {
   ANY_CASTLING = WHITE_CASTLING | BLACK_CASTLING
 };
 
+constexpr Castling operator~(Castling castling) {
+  return Castling(~(int)castling);
+}
+
 constexpr Castling operator&(Castling castling1, Castling castling2) {
   return Castling((int)castling1 & (int)castling2);
 }
@@ -194,12 +198,14 @@ struct Piece {
   Square    square;
 };
 
+typedef uint64_t ZobristKey;
+
 enum Move : int {
 
 };
 
 constexpr Move operator|(Move move, PieceType promotion) {
-  return Move(move | promotion);
+  return Move((int)move | promotion);
 }
 
 constexpr Move operator|=(Move &move, PieceType promotion) {
@@ -207,19 +213,19 @@ constexpr Move operator|=(Move &move, PieceType promotion) {
 }
 
 struct MoveInfo {
-  Move     move;
-  Piece*   movedPiece;
-  Piece*   capturedPiece;
-  Piece*   castlingRook;
-  bool     wasCheck;
-  bool     wasDoubleCheck;
-  Piece*   prevCheckingPiece;
-  uint64_t prevPositionKey;
-  uint64_t prevPawnKey;
-  int      prevPositionCount;
-  Square   prevPossibleEnPassant;
-  Castling prevPossibleCastling;
-  int      prevPliesFor50MoveRule;
+  Move        move;
+  Piece*      movedPiece;
+  Piece*      capturedPiece;
+  Piece*      castlingRook;
+  bool        wasCheck;
+  bool        wasDoubleCheck;
+  Piece*      prevCheckingPiece;
+  ZobristKey  prevPositionKey;
+  ZobristKey  prevPawnKey;
+  int         prevPositionCount;
+  Square      prevPossibleEnPassant;
+  Castling    prevPossibleCastling;
+  int         prevPliesFor50MoveRule;
 };
 
 typedef int PieceSquareTable[64];

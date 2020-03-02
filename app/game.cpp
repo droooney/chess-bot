@@ -12,17 +12,17 @@
 using namespace std;
 
 Game::Game(const string &fen, const string &moves) {
-  Piece* emptyPiece = new Piece({
+  Piece* noPiece = new Piece({
     .index  = -1,
     .type   = NO_PIECE,
     .color  = NO_COLOR,
     .square = NO_SQUARE
   });
 
-  this->emptyPiece = emptyPiece;
+  this->noPiece = noPiece;
 
   this->bishopsCount = 0;
-  this->checkingPiece = this->emptyPiece;
+  this->checkingPiece = this->noPiece;
   this->isCheck = false;
   this->isDoubleCheck = false;
   this->isDraw = false;
@@ -38,7 +38,7 @@ Game::Game(const string &fen, const string &moves) {
   this->turnKey = this->generateKey();
 
   for (auto &piece : this->board) {
-    piece = this->emptyPiece;
+    piece = this->noPiece;
   }
 
   for (auto &castlingKey : this->castlingKeys) {
@@ -50,7 +50,7 @@ Game::Game(const string &fen, const string &moves) {
   }
 
   for (int color = WHITE; color < NO_COLOR; color++) {
-    this->kings[color] = this->emptyPiece;
+    this->kings[color] = this->noPiece;
     this->material[color] = 0;
     this->pieceCounts[color] = 0;
 
@@ -64,8 +64,8 @@ Game::Game(const string &fen, const string &moves) {
   this->setStartingData();
 }
 
-uint64_t Game::generateKey() {
-  uint64_t key = 0ULL;
+ZobristKey Game::generateKey() {
+  ZobristKey key = 0ULL;
 
   while (key == 0ULL || this->keys.find(key) != this->keys.end()) {
     key = 0ULL;
@@ -146,7 +146,163 @@ Piece* Game::getCheckingPiece() {
     }
   }
 
-  return this->emptyPiece;
+  return this->noPiece;
+}
+
+vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
+  bool isKing = piece->type == KING;
+
+  if (this->isDoubleCheck && !isKing) {
+    return {};
+  }
+
+  Square kingSquare = this->kings[this->turn]->square;
+  Color opponentColor = ~this->turn;
+  bool isPawn = piece->type == PAWN;
+
+  bool isPinned = false;
+  bool isEnPassantPinned = false;
+  PinDirection pinDirection = NO_PIN_DIRECTION;
+  Piece* pinningPiece = this->noPiece;
+
+  if (
+    !isKing
+    && gameUtils::areAligned(piece->square, kingSquare)
+    && !this->isDirectionBlocked(piece->square, kingSquare)
+    ) {
+    pinningPiece = this->getSliderBehind(kingSquare, piece->square, opponentColor);
+    isPinned = gameUtils::isPiece(pinningPiece);
+
+    if (isPinned) {
+      pinDirection = gameUtils::areAlignedDiagonally(piece->square, kingSquare)
+        ? PIN_DIAGONAL
+        : gameUtils::rankOf(piece->square) == gameUtils::rankOf(kingSquare)
+          ? PIN_HORIZONTAL
+          : PIN_VERTICAL;
+    }
+  }
+
+  vector<Square>* pawnAttacks = gameUtils::pawnAttacks[piece->color][piece->square];
+
+  if (
+    !isPinned
+    && isPawn
+    && this->possibleEnPassant != NO_SQUARE
+    && find(pawnAttacks->begin(), pawnAttacks->end(), this->possibleEnPassant) != pawnAttacks->end()
+    ) {
+    Piece* capturedPawn = this->board[gameUtils::getEnPassantPieceSquare(this->possibleEnPassant)];
+
+    this->board[capturedPawn->square] = this->noPiece;
+
+    isEnPassantPinned = (
+      gameUtils::isPiece(this->getSliderBehind(kingSquare, piece->square, opponentColor))
+      && !this->isDirectionBlocked(piece->square, kingSquare)
+    );
+
+    this->board[capturedPawn->square] = capturedPawn;
+  }
+
+  if (isPinned && this->isCheck) {
+    return {};
+  }
+
+  if (
+    isPinned
+    && (
+      piece->type == KNIGHT
+      || (
+        pinDirection == PIN_DIAGONAL
+        && piece->type == ROOK
+      )
+      || (
+        pinDirection == PIN_HORIZONTAL
+        && (piece->type == PAWN || piece->type == BISHOP)
+      )
+      || (
+        pinDirection == PIN_VERTICAL
+        && piece->type == BISHOP
+      )
+    )
+  ) {
+    return {};
+  }
+
+  vector<Square> pseudoLegalMoves = this->getPseudoLegalMoves(piece);
+
+  if (!this->isCheck && !isKing && !isPinned && (!isPawn || !isEnPassantPinned)) {
+    return pseudoLegalMoves;
+  }
+
+  vector<Square> legalMoves;
+  Square prevSquare = piece->square;
+
+  this->board[prevSquare] = this->noPiece;
+
+  for (auto &square : pseudoLegalMoves) {
+    bool isEnPassantCapture = isPawn && square == this->possibleEnPassant;
+
+    if (isEnPassantCapture && isEnPassantPinned) {
+      continue;
+    }
+
+    if (this->isCheck && !isKing) {
+      Square capturedPieceSquare = isEnPassantCapture
+        ? gameUtils::getEnPassantPieceSquare(this->possibleEnPassant)
+        : square;
+
+      if (
+        // not capturing checking piece
+        capturedPieceSquare != this->checkingPiece->square
+        && (
+          // and not blocking slider checker
+          !gameUtils::isSlider(this->checkingPiece)
+          || !gameUtils::isSquareBetween(kingSquare, square, this->checkingPiece->square)
+        )
+      ) {
+        continue;
+      }
+    }
+
+    if (!isKing) {
+      if (!isPinned || gameUtils::areOnOneLine(kingSquare, square, pinningPiece->square)) {
+        legalMoves.push_back(square);
+
+        if (stopAfter1) {
+          break;
+        }
+      }
+
+      continue;
+    }
+
+    Piece* capturedPiece = this->board[square];
+
+    if (gameUtils::isPiece(capturedPiece)) {
+      this->board[capturedPiece->square] = this->noPiece;
+    }
+
+    this->board[square] = piece;
+    piece->square = square;
+
+    if (!this->isInCheck()) {
+      legalMoves.push_back(square);
+    }
+
+    this->board[square] = this->noPiece;
+
+    if (gameUtils::isPiece(capturedPiece)) {
+      this->board[capturedPiece->square] = capturedPiece;
+    }
+
+    if (stopAfter1 && !legalMoves.empty()) {
+      break;
+    }
+  }
+
+  this->board[prevSquare] = piece;
+  piece->square = prevSquare;
+
+  return legalMoves;
 }
 
 vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
@@ -280,139 +436,6 @@ vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
   return moves;
 }
 
-vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
-  bool isKing = piece->type == KING;
-
-  if (this->isDoubleCheck && !isKing) {
-    return {};
-  }
-
-  Square kingSquare = this->kings[this->turn]->square;
-  Color opponentColor = ~this->turn;
-  bool isPawn = piece->type == PAWN;
-
-  bool isPinned = false;
-  bool isEnPassantPinned = false;
-  PinDirection pinDirection = NO_PIN_DIRECTION;
-  Piece* pinningPiece = this->emptyPiece;
-
-  if (
-    !isKing
-    && gameUtils::areAligned(piece->square, kingSquare)
-    && !this->isDirectionBlocked(piece->square, kingSquare)
-  ) {
-    pinningPiece = this->getSliderBehind(kingSquare, piece->square, opponentColor);
-    isPinned = gameUtils::isPiece(pinningPiece);
-
-    if (isPinned) {
-      pinDirection = gameUtils::areAlignedDiagonally(piece->square, kingSquare)
-        ? PIN_DIAGONAL
-        : gameUtils::rankOf(piece->square) == gameUtils::rankOf(kingSquare)
-          ? PIN_HORIZONTAL
-          : PIN_VERTICAL;
-    }
-  }
-
-  vector<Square>* pawnAttacks = gameUtils::pawnAttacks[piece->color][piece->square];
-
-  if (
-    !isPinned
-    && isPawn
-    && this->possibleEnPassant != NO_SQUARE
-    && find(pawnAttacks->begin(), pawnAttacks->end(), this->possibleEnPassant) != pawnAttacks->end()
-  ) {
-    Piece* capturedPawn = this->board[gameUtils::getEnPassantPieceSquare(this->possibleEnPassant)];
-
-    this->board[capturedPawn->square] = this->emptyPiece;
-
-    isEnPassantPinned = (
-      gameUtils::isPiece(this->getSliderBehind(kingSquare, piece->square, opponentColor))
-      && !this->isDirectionBlocked(piece->square, kingSquare)
-    );
-
-    this->board[capturedPawn->square] = capturedPawn;
-  }
-
-  if (isPinned && this->isCheck) {
-    return {};
-  }
-
-  if (
-    isPinned
-    && (
-      piece->type == KNIGHT
-      || (
-        pinDirection == PIN_DIAGONAL
-        && piece->type == ROOK
-      )
-      || (
-        pinDirection == PIN_HORIZONTAL
-        && (piece->type == PAWN || piece->type == BISHOP)
-      )
-      || (
-        pinDirection == PIN_VERTICAL
-        && piece->type == BISHOP
-      )
-    )
-  ) {
-    return {};
-  }
-
-  vector<Square> pseudoLegalMoves = this->getPseudoLegalMoves(piece);
-
-  if (!this->isCheck && !isKing && !isPinned && (!isPawn || !isEnPassantPinned)) {
-    return pseudoLegalMoves;
-  }
-
-  vector<Square> moves;
-  Square prevSquare = piece->square;
-
-  this->board[prevSquare] = this->emptyPiece;
-
-  for (auto &square : pseudoLegalMoves) {
-    bool isEnPassantCapture = isPawn && square == this->possibleEnPassant;
-
-    if (isEnPassantCapture && isEnPassantPinned) {
-      continue;
-    }
-
-    if (this->isCheck && !isKing) {
-      Square capturedPieceSquare = isEnPassantCapture
-        ? gameUtils::getEnPassantPieceSquare(this->possibleEnPassant)
-        : square;
-
-      if (
-        // not capturing checking piece
-        capturedPieceSquare != this->checkingPiece->square
-        && (
-          // and not blocking slider checker
-          !gameUtils::isSlider(this->checkingPiece)
-          || !gameUtils::isSquareBetween(kingSquare, square, this->checkingPiece->square)
-        )
-      ) {
-        continue;
-      }
-    }
-
-    if (!isKing) {
-      if (!isPinned || gameUtils::areOnOneLine(kingSquare, square, pinningPiece->square)) {
-        moves.push_back(square);
-
-        if (stopAfter1) {
-          break;
-        }
-      }
-
-      continue;
-    }
-  }
-
-  this->board[prevSquare] = piece;
-  piece->square = prevSquare;
-
-  return moves;
-}
-
 Piece* Game::getSliderBehind(Square square1, Square square2, Color color) {
   PieceType directionSlider = gameUtils::areAlignedDiagonally(square1, square2)
     ? BISHOP
@@ -436,7 +459,7 @@ Piece* Game::getSliderBehind(Square square1, Square square2, Color color) {
     }
   }
 
-  return this->emptyPiece;
+  return this->noPiece;
 }
 
 bool Game::isDirectionBlocked(Square square1, Square square2) {
@@ -609,11 +632,243 @@ bool Game::isSquareAttacked(Square square) {
 }
 
 MoveInfo Game::performMove(Move move) {
-  // TODO: implement
+  Square from = gameUtils::getMoveFrom(move);
+  Square to = gameUtils::getMoveTo(move);
+  PieceType promotion = gameUtils::getMovePromotion(move);
+  Piece* piece = this->board[from];
+  PieceType pieceType = piece->type;
+  Color pieceColor = piece->color;
+  Color opponentColor = ~this->turn;
+  bool wasCheck = this->isCheck;
+  bool wasDoubleCheck = this->isDoubleCheck;
+  Piece* prevCheckingPiece = this->checkingPiece;
+  ZobristKey prevPositionKey = this->positionKey;
+  ZobristKey prevPawnKey = this->pawnKey;
+  Square prevPossibleEnPassant = this->possibleEnPassant;
+  Castling prevPossibleCastling = this->possibleCastling;
+  int prevPliesFor50MoveRule = this->pliesFor50MoveRule;
+  bool isEnPassantCapture = pieceType == PAWN && to == this->possibleEnPassant;
+  Piece* capturedPiece = this->board[isEnPassantCapture ? gameUtils::getEnPassantPieceSquare(to) : to];
+  Piece* castlingRook = this->noPiece;
+  ZobristKey positionPieceKeyChange = this->pieceKeys[pieceColor][pieceType][from] ^ this->pieceKeys[pieceColor][pieceType][to];
+
+  this->positionKey ^= positionPieceKeyChange;
+
+  if (pieceType == PAWN) {
+    this->pawnKey ^= positionPieceKeyChange;
+  }
+
+  this->board[from] = this->noPiece;
+  this->board[to] = piece;
+
+  piece->square = to;
+
+  if (pieceType == KING) {
+    this->possibleCastling &= ~(ANY_CASTLING & pieceColor);
+  } else if (pieceType == ROOK) {
+    if (from == SQ_A1) {
+      this->possibleCastling &= ~WHITE_OOO;
+    } else if (from == SQ_H1) {
+      this->possibleCastling &= ~WHITE_OO;
+    } else if (from == SQ_A8) {
+      this->possibleCastling &= ~BLACK_OOO;
+    } else if (from == SQ_H8) {
+      this->possibleCastling &= ~BLACK_OO;
+    }
+  }
+
+  if (pieceType == KING && abs(gameUtils::fileOf(to) - gameUtils::fileOf(from)) > 1) {
+    Square rookSquare = NO_SQUARE;
+    Square newRookSquare = NO_SQUARE;
+
+    if (to == SQ_C1) {
+      rookSquare = SQ_A1;
+      newRookSquare = SQ_D1;
+    } else if (to == SQ_G1) {
+      rookSquare = SQ_H1;
+      newRookSquare = SQ_F1;
+    } else if (to == SQ_C8) {
+      rookSquare = SQ_A8;
+      newRookSquare = SQ_D8;
+    } else if (to == SQ_G8) {
+      rookSquare = SQ_H8;
+      newRookSquare = SQ_F8;
+    }
+
+    castlingRook = this->board[rookSquare];
+
+    this->positionKey ^= (
+      this->pieceKeys[castlingRook->color][castlingRook->type][castlingRook->square]
+      ^ this->pieceKeys[castlingRook->color][castlingRook->type][newRookSquare]
+    );
+
+    this->board[castlingRook->square] = this->noPiece;
+    this->board[newRookSquare] = castlingRook;
+
+    castlingRook->square = newRookSquare;
+  }
+
+  if (gameUtils::isPiece(capturedPiece)) {
+    Piece** opponentPieces = this->pieces[opponentColor];
+
+    (opponentPieces[capturedPiece->index] = opponentPieces[--this->pieceCounts[opponentColor]])->index = capturedPiece->index;
+
+    this->material[opponentColor] -= gameUtils::piecesWorth[capturedPiece->type];
+    this->positionKey ^= this->pieceKeys[capturedPiece->color][capturedPiece->type][capturedPiece->square];
+
+    if (isEnPassantCapture) {
+      this->board[capturedPiece->square] = this->noPiece;
+    }
+
+    if (capturedPiece->type == ROOK) {
+      if (to == SQ_A1) {
+        this->possibleCastling &= ~WHITE_OOO;
+      } else if (to == SQ_H1) {
+        this->possibleCastling &= ~WHITE_OO;
+      } else if (to == SQ_A8) {
+        this->possibleCastling &= ~BLACK_OOO;
+      } else if (to == SQ_H8) {
+        this->possibleCastling &= ~BLACK_OO;
+      }
+    } else if (capturedPiece->type == BISHOP) {
+      this->bishopsCount--;
+    } else if (capturedPiece->type == PAWN) {
+      this->pawnKey ^= this->pieceKeys[capturedPiece->color][capturedPiece->type][capturedPiece->square];
+      this->pawnCount--;
+    }
+  }
+
+  if (gameUtils::isPiece(capturedPiece) || pieceType == PAWN) {
+    this->pliesFor50MoveRule = 0;
+  } else {
+    this->pliesFor50MoveRule++;
+  }
+
+  if (promotion != NO_PIECE) {
+    piece->type = promotion;
+
+    this->material[pieceColor] += gameUtils::piecesWorth[promotion] - gameUtils::piecesWorth[PAWN];
+    this->positionKey ^= this->pieceKeys[pieceColor][PAWN][to] ^ this->pieceKeys[pieceColor][promotion][to];
+    this->pawnKey ^= this->pieceKeys[pieceColor][PAWN][to];
+    this->pawnCount--;
+  }
+
+  if (pieceType == PAWN && abs(gameUtils::rankOf(to) - gameUtils::rankOf(from)) > 1) {
+    File pawnFile = gameUtils::fileOf(to);
+    Piece* leftPiece = pawnFile == FILE_A ? this->noPiece : this->board[to - 1];
+    Piece* rightPiece = pawnFile == FILE_H ? this->noPiece : this->board[to + 1];
+
+    if ((
+      leftPiece->type == PAWN
+      && leftPiece->color == opponentColor
+    ) || (
+      rightPiece->type == PAWN
+      && rightPiece->color == opponentColor
+    )) {
+      Square enPassantSquare = to + (pieceColor == WHITE ? SOUTH : NORTH);
+
+      this->possibleEnPassant = enPassantSquare;
+      this->positionKey ^= this->enPassantKeys[enPassantSquare];
+    } else {
+      this->possibleEnPassant = NO_SQUARE;
+    }
+  } else {
+    this->possibleEnPassant = NO_SQUARE;
+  }
+
+  this->positionKey ^= this->turnKey ^ this->castlingKeys[prevPossibleCastling] ^ this->castlingKeys[this->possibleCastling];
+
+  if (prevPossibleEnPassant) {
+    this->positionKey ^= this->enPassantKeys[prevPossibleEnPassant];
+  }
+
+  bool isCheck = false;
+  bool isNormalCheck = false;
+  bool isDiscoveredCheck = false;
+  bool isEnPassantDiscoveredCheck = false;
+  Piece* checkingPiece = this->noPiece;
+  Square opponentKingSquare = this->kings[opponentColor]->square;
+  Piece* possibleNormalCheckingPiece = gameUtils::isPiece(castlingRook) ? castlingRook : piece;
+  PieceType checkingPieceType = possibleNormalCheckingPiece->type;
+
+  if (checkingPieceType == KNIGHT || checkingPieceType == PAWN) {
+    vector<Square> attacks = this->getAttacks(possibleNormalCheckingPiece);
+
+    if (find(attacks.begin(), attacks.end(), opponentKingSquare) != attacks.end()) {
+      isCheck = isNormalCheck = true;
+      checkingPiece = possibleNormalCheckingPiece;
+    }
+  } else if (
+    checkingPieceType != KING
+    && gameUtils::arePieceAligned(possibleNormalCheckingPiece->square, opponentKingSquare, checkingPieceType)
+    && (
+      !gameUtils::areOnOneLine(from, to, opponentKingSquare)
+      || gameUtils::isPiece(capturedPiece)
+      || gameUtils::isPiece(castlingRook)
+      || promotion != NO_PIECE
+    )
+    && !this->isDirectionBlocked(possibleNormalCheckingPiece->square, opponentKingSquare)
+  ) {
+    isCheck = isNormalCheck = true;
+    checkingPiece = possibleNormalCheckingPiece;
+  }
+
+  if (
+    pieceType != QUEEN
+    && (
+      (gameUtils::areAlignedDiagonally(from, opponentKingSquare) && pieceType != BISHOP)
+      || (gameUtils::areAlignedOrthogonally(from, opponentKingSquare) && pieceType != ROOK)
+    )
+    && !gameUtils::areOnOneLine(from, to, opponentKingSquare)
+    && !gameUtils::isPiece(castlingRook)
+  ) {
+    Piece* sliderBehind = this->getSliderBehind(opponentKingSquare, from, pieceColor);
+
+    if (gameUtils::isPiece(sliderBehind) && !this->isDirectionBlocked(from, opponentKingSquare)) {
+      isDiscoveredCheck = isCheck = true;
+      checkingPiece = sliderBehind;
+    }
+  }
+
+  if (!isNormalCheck && isEnPassantCapture && gameUtils::areAlignedDiagonally(opponentKingSquare, capturedPiece->square)) {
+    Piece* sliderBehind = this->getSliderBehind(opponentKingSquare, capturedPiece->square, pieceColor);
+
+    if (gameUtils::isPiece(sliderBehind) && !this->isDirectionBlocked(capturedPiece->square, opponentKingSquare)) {
+      isEnPassantDiscoveredCheck = isCheck = true;
+      checkingPiece = sliderBehind;
+    }
+  }
+
+  int prevPositionCount = this->positions[this->positionKey];
+
+  this->turn = opponentColor;
+  this->isCheck = isCheck;
+  this->isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
+  this->checkingPiece = checkingPiece;
+  this->positions[this->positionKey] = prevPositionCount + 1;
+
+  if (
+    this->pliesFor50MoveRule >= 100
+    || prevPositionCount >= 2
+    || this->isInsufficientMaterial()
+    ) {
+    this->isDraw = true;
+  }
 
   return {
     .move = move,
-
+    .movedPiece = piece,
+    .capturedPiece = capturedPiece,
+    .castlingRook = castlingRook,
+    .wasCheck = wasCheck,
+    .wasDoubleCheck = wasDoubleCheck,
+    .prevCheckingPiece = prevCheckingPiece,
+    .prevPositionKey = prevPositionKey,
+    .prevPawnKey = prevPawnKey,
+    .prevPositionCount = prevPositionCount,
+    .prevPossibleEnPassant = prevPossibleEnPassant,
+    .prevPossibleCastling = prevPossibleCastling,
+    .prevPliesFor50MoveRule = prevPliesFor50MoveRule
   };
 }
 
@@ -642,7 +897,7 @@ void Game::revertMove(MoveInfo* move) {
   Square from = gameUtils::getMoveFrom(move->move);
   PieceType promotion = gameUtils::getMovePromotion(move->move);
 
-  this->board[movedPiece->square] = this->emptyPiece;
+  this->board[movedPiece->square] = this->noPiece;
   this->board[from] = movedPiece;
   movedPiece->square = from;
 
@@ -674,7 +929,7 @@ void Game::revertMove(MoveInfo* move) {
       gameUtils::fileOf(castlingRook->square) == FILE_F ? FILE_H : FILE_A
     );
 
-    this->board[castlingRook->square] = this->emptyPiece;
+    this->board[castlingRook->square] = this->noPiece;
     this->board[oldSquare] = castlingRook;
     castlingRook->square = oldSquare;
   }
@@ -773,8 +1028,8 @@ void Game::setStartingData() {
   }
 
   if (possibleCastling != "-") {
-    if (possibleCastling.find('k') != string::npos) this->possibleCastling |= WHITE_OO;
-    if (possibleCastling.find('q') != string::npos) this->possibleCastling |= WHITE_OOO;
+    if (possibleCastling.find('K') != string::npos) this->possibleCastling |= WHITE_OO;
+    if (possibleCastling.find('Q') != string::npos) this->possibleCastling |= WHITE_OOO;
     if (possibleCastling.find('k') != string::npos) this->possibleCastling |= BLACK_OO;
     if (possibleCastling.find('q') != string::npos) this->possibleCastling |= BLACK_OOO;
   }
@@ -784,9 +1039,4 @@ void Game::setStartingData() {
   this->checkingPiece = this->getCheckingPiece();
 
   this->positions[this->positionKey] = 1;
-
-  this->printBoard();
-
-  cout << this->possibleCastling << endl;
-  cout << this->possibleEnPassant << endl;
 }

@@ -8,6 +8,7 @@
     "build": "node-gyp rebuild",
     "clean": "node-gyp clean",
     "perft": "ts-node ./app/perft.ts",
+    "perft-c++": "./cmake-build-debug/chess-bot --runPerft",
     "start": "NODE_ENV=production TOKEN=1NGMeQ6253r2WI1W NAME=tonygbot ts-node app/index.ts",
     "start-dev": "NODE_ENV=development TOKEN=4Gi6xmE4CzdnjHwx NAME=tonygbotdev ts-node app/index.ts"
   },

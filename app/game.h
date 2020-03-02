@@ -12,37 +12,39 @@ using namespace std;
 class Game {
 public:
   Game(const string &fen, const string &moves);
+  vector<Move>   getAllLegalMoves();
+  MoveInfo       performMove(Move move);
+  void           revertMove(MoveInfo* move);
 
 protected:
-  int                          bishopsCount;
-  Piece*                       board[64];
-  uint64_t                     castlingKeys[16];
-  Piece*                       checkingPiece;
-  Piece*                       emptyPiece;
-  uint64_t                     enPassantKeys[64];
-  bool                         isCheck;
-  bool                         isDoubleCheck;
-  bool                         isDraw;
-  string                       fen;
-  unordered_set<uint64_t>      keys;
-  Piece*                       kings[2];
-  int                          material[2];
-  string                       moves;
-  int                          pawnCount;
-  uint64_t                     pawnKey;
-  Piece*                       pieces[2][64];
-  int                          pieceCounts[2];
-  uint64_t                     pieceKeys[2][6][64];
-  int                          pliesFor50MoveRule;
-  uint64_t                     positionKey;
-  unordered_map<uint64_t, int> positions;
-  Castling                     possibleCastling;
-  Square                       possibleEnPassant;
-  Color                        turn;
-  uint64_t                     turnKey;
+  int                            bishopsCount;
+  Piece*                         board[64];
+  ZobristKey                     castlingKeys[16];
+  Piece*                         checkingPiece;
+  ZobristKey                     enPassantKeys[64];
+  bool                           isCheck;
+  bool                           isDoubleCheck;
+  bool                           isDraw;
+  string                         fen;
+  unordered_set<ZobristKey>      keys;
+  Piece*                         kings[2];
+  int                            material[2];
+  string                         moves;
+  Piece*                         noPiece;
+  int                            pawnCount;
+  ZobristKey                     pawnKey;
+  Piece*                         pieces[2][64];
+  int                            pieceCounts[2];
+  ZobristKey                     pieceKeys[2][6][64];
+  int                            pliesFor50MoveRule;
+  ZobristKey                     positionKey;
+  unordered_map<ZobristKey, int> positions;
+  Castling                       possibleCastling;
+  Square                         possibleEnPassant;
+  Color                          turn;
+  ZobristKey                     turnKey;
 
-  uint64_t       generateKey();
-  vector<Move>   getAllLegalMoves();
+  ZobristKey     generateKey();
   vector<Square> getAttacks(Piece* piece);
   Piece*         getCheckingPiece();
   vector<Square> getLegalMoves(Piece* piece, bool stopAfter1);
@@ -55,9 +57,7 @@ protected:
   bool           isInsufficientMaterial();
   bool           isNoMoves();
   bool           isSquareAttacked(Square square);
-  MoveInfo       performMove(Move move);
   void           printBoard();
-  void           revertMove(MoveInfo* move);
   void           setStartingData();
 };
 

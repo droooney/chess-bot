@@ -17,11 +17,11 @@ const tests = [
     nodeCounts: [20, 400, 8_902, 197_281, 4_865_609]
   },
   {
-    initialFen: 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -',
+    initialFen: 'r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1',
     nodeCounts: [48, 2_039, 97_862, 4_085_603]
   },
   {
-    initialFen: '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -',
+    initialFen: '8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - - 0 1',
     nodeCounts: [14, 191, 2_812, 43_238, 674_624, 11_030_083]
   },
   {
@@ -45,19 +45,19 @@ const tests = [
     nodeCounts: [42, 1_432, 51_677, 1_747_286]
   },
   {
-    initialFen: '3b4/2P5/8/8/8/2n5/8/2k1K2R w K -',
+    initialFen: '3b4/2P5/8/8/8/2n5/8/2k1K2R w K - 0 1',
     nodeCounts: [20, 268, 5_464, 69_692, 1_490_361]
   },
   {
-    initialFen: '6b1/5P2/8/8/3n1k2/8/8/4K2R w K -',
+    initialFen: '6b1/5P2/8/8/3n1k2/8/8/4K2R w K - 0 1',
     nodeCounts: [22, 325, 6_839, 96_270, 2_148_378]
   },
   {
-    initialFen: '8/p3p3/1b1k4/3P1p2/8/8/1n3B2/2KR4 w - -',
+    initialFen: '8/p3p3/1b1k4/3P1p2/8/8/1n3B2/2KR4 w - - 0 1',
     nodeCounts: [19, 326, 5_853, 99_157, 1_905_025]
   },
   {
-    initialFen: '8/p3p3/3k4/3P1p2/8/8/5B2/K7 w - -',
+    initialFen: '8/p3p3/3k4/3P1p2/8/8/5B2/K7 w - - 0 1',
     nodeCounts: [12, 99, 1_262, 11_208, 150_846, 1_366_710]
   }
 ];
