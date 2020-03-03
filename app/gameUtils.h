@@ -222,7 +222,6 @@ struct MoveInfo {
   Piece*      prevCheckingPiece;
   ZobristKey  prevPositionKey;
   ZobristKey  prevPawnKey;
-  int         prevPositionCount;
   Square      prevPossibleEnPassant;
   Castling    prevPossibleCastling;
   int         prevPliesFor50MoveRule;

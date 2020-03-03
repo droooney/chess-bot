@@ -24,7 +24,6 @@ export interface Move {
   prevCheckingPiece: Piece | null;
   prevPositionKey: bigint;
   prevPawnKey: bigint;
-  prevPositionCount: number;
   prevPossibleEnPassant: number | null;
   prevPossibleCastling: number;
   prevPliesWithoutCaptureOrPawnMove: number;

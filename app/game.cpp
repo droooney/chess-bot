@@ -839,19 +839,18 @@ MoveInfo Game::performMove(Move move) {
     }
   }
 
-  int prevPositionCount = this->positions[this->positionKey];
-
   this->turn = opponentColor;
   this->isCheck = isCheck;
   this->isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
   this->checkingPiece = checkingPiece;
-  this->positions[this->positionKey] = prevPositionCount + 1;
+
+  this->positions.push_back(this->positionKey);
 
   if (
     this->pliesFor50MoveRule >= 100
-    || prevPositionCount >= 2
+    || count(this->positions.end() - (this->pliesFor50MoveRule + 1), this->positions.end(), this->positionKey) >= 2
     || this->isInsufficientMaterial()
-    ) {
+  ) {
     this->isDraw = true;
   }
 
@@ -865,7 +864,6 @@ MoveInfo Game::performMove(Move move) {
     .prevCheckingPiece = prevCheckingPiece,
     .prevPositionKey = prevPositionKey,
     .prevPawnKey = prevPawnKey,
-    .prevPositionCount = prevPositionCount,
     .prevPossibleEnPassant = prevPossibleEnPassant,
     .prevPossibleCastling = prevPossibleCastling,
     .prevPliesFor50MoveRule = prevPliesFor50MoveRule
@@ -938,11 +936,7 @@ void Game::revertMove(MoveInfo* move) {
   this->isDoubleCheck = move->wasDoubleCheck;
   this->checkingPiece = move->prevCheckingPiece;
 
-  if (move->prevPositionCount == 0) {
-    this->positions.erase(this->positionKey);
-  } else {
-    this->positions[this->positionKey] = move->prevPositionCount;
-  }
+  this->positions.pop_back();
 
   this->positionKey = move->prevPositionKey;
   this->pawnKey = move->prevPawnKey;
@@ -1038,5 +1032,5 @@ void Game::setStartingData() {
   this->isDoubleCheck = this->isInDoubleCheck();
   this->checkingPiece = this->getCheckingPiece();
 
-  this->positions[this->positionKey] = 1;
+  this->positions.push_back(this->positionKey);
 }
