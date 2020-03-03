@@ -41,6 +41,8 @@ export default class Bot extends Game {
   evaluatedPositions: Map<bigint, number> = new Map();
   evaluatedPawnPositions: Record<Color, Map<bigint, number>> = [new Map(), new Map()];
   nodes: number = 0;
+  cutNodesCount: number = 0;
+  firstCutNodesCount: number = 0;
   evalTime: number = 0;
   evalKingSafetyTime: number = 0;
   evalPawnsTime: number = 0;
@@ -504,6 +506,12 @@ export default class Bot extends Game {
       }
 
       if (score >= beta) {
+        if (i === 0) {
+          this.firstCutNodesCount++;
+        }
+
+        this.cutNodesCount++;
+
         return beta;
       }
 
@@ -585,6 +593,8 @@ export default class Bot extends Game {
     }
 
     this.nodes = 0;
+    this.cutNodesCount = 0;
+    this.firstCutNodesCount = 0;
     this.evalTime = 0;
     this.evalKingSafetyTime = 0;
     this.evalPawnsTime = 0;
@@ -619,6 +629,7 @@ export default class Bot extends Game {
     }
 
     console.log(`nodes: ${`${this.nodes}`.blue.bold}`);
+    console.log(`move ordering quality: ${`${Math.round((this.firstCutNodesCount / this.cutNodesCount) * 100)}%`.green.bold}`);
     console.log(`performance: ${`${Math.round(this.nodes / moveTook)}`.green.bold} kn/s`);
     console.log('-'.repeat(80).bold);
 
