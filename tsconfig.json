@@ -6,6 +6,10 @@
     "moduleResolution": "node",
     "noUnusedLocals": true,
     "noUnusedParameters": true,
+    "typeRoots": [
+      "node_modules/@types",
+      "app/typings"
+    ],
     "strict": true,
     "sourceMap": true
   },

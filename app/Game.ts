@@ -44,7 +44,7 @@ export default class Game extends Utils {
   material: Record<Color, number> = [0, 0];
   positionKey: bigint = 0n;
   pawnKey: bigint = 0n;
-  positions: Map<bigint, number> = new Map();
+  positions: bigint[] = [];
   possibleCastling: number = 0;
   possibleEnPassant: number | null = null;
   pliesWithoutCaptureOrPawnMove: number = 0;
@@ -844,13 +844,19 @@ export default class Game extends Utils {
       }
     }
 
-    const prevPositionCount = this.positions.get(this.positionKey) || 0;
+    let prevPositionCount = 0;
+
+    for (let i = this.positions.length - this.pliesWithoutCaptureOrPawnMove - 1; i < this.positions.length; i++) {
+      if (this.positions[i] === this.positionKey) {
+        prevPositionCount++;
+      }
+    }
 
     this.turn = opponentColor;
     this.isCheck = isCheck;
     this.isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
     this.checkingPiece = checkingPiece;
-    this.positions.set(this.positionKey, prevPositionCount + 1);
+    this.positions.push(this.positionKey);
 
     if (
       this.pliesWithoutCaptureOrPawnMove >= 100
@@ -870,7 +876,6 @@ export default class Game extends Utils {
       prevCheckingPiece,
       prevPositionKey,
       prevPawnKey,
-      prevPositionCount,
       prevPossibleEnPassant,
       prevPossibleCastling,
       prevPliesWithoutCaptureOrPawnMove
@@ -945,11 +950,7 @@ export default class Game extends Utils {
     this.isDoubleCheck = move.wasDoubleCheck;
     this.checkingPiece = move.prevCheckingPiece;
 
-    if (move.prevPositionCount === 0) {
-      this.positions.delete(this.positionKey);
-    } else {
-      this.positions.set(this.positionKey, move.prevPositionCount);
-    }
+    this.positions.pop();
 
     this.positionKey = move.prevPositionKey;
     this.pawnKey = move.prevPawnKey;
@@ -1034,6 +1035,6 @@ export default class Game extends Utils {
     this.isCheck = this.isInCheck();
     this.isDoubleCheck = this.isInDoubleCheck();
     this.checkingPiece = this.getCheckingPiece();
-    this.positions.set(this.positionKey, 1);
+    this.positions.push(this.positionKey);
   }
 }

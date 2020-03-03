@@ -5,10 +5,10 @@
   <title>Title</title>
   <script>
     const map = {};
-    const fen = '8/p3p3/3k4/3P1p2/8/8/5B2/K7 w - -';
-    const mode = 'FULL_DEPTH';
-    // const mode = 'ONLY_DEPTH';
-    const depth = 6;
+    const fen = 'r2q1rk1/pP1p2pp/Q4n2/b1p1p3/Npb5/1B3NBn/pPPP1PPP/R3K2R w KQ - 0 1';
+    // const mode = 'FULL_DEPTH';
+    const mode = 'ONLY_DEPTH';
+    const depth = 1;
 
     if (mode === 'FULL_DEPTH') {
       const goDepth = (depth) => {
@@ -61,7 +61,8 @@
         }
 
         if (!data) {
-          console.log(JSON.stringify(map, null, 2));
+          // console.log(JSON.stringify(map, null, 2));
+          console.log(`{\n  ${Object.keys(map).map((move) => `{"${move}", ${map[move]}}`).join(',\n  ')}\n}`);
         }
 
         const nodesCountMatch = data.match(/^Nodes searched: \d+/);
