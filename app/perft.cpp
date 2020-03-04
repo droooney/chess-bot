@@ -85,7 +85,7 @@ int perft::perft(string initialFen, int depth, bool useMap) {
 
     // auto timestamp = high_resolution_clock::now();
 
-    MoveList legalMoves = MoveList();
+    List<Move, 256> legalMoves = List<Move, 256>();
 
     legalMoves.last = game.getAllLegalMoves(legalMoves.list);
 
@@ -140,7 +140,7 @@ int perft::perft(string initialFen, int depth, bool useMap) {
 
   if (false) {
     MoveInfo moveInfo = game.performMove(gameUtils::uciToMove("a4b3"));
-    MoveList legalMoves = MoveList();
+    List<Move, 256> legalMoves = List<Move, 256>();
 
     legalMoves.last = game.getAllLegalMoves(legalMoves.list);
 
@@ -169,6 +169,7 @@ int perft::perft(string initialFen, int depth, bool useMap) {
 
 void perft::perftMain() {
   auto timestamp = high_resolution_clock::now();
+  int sumNodes = 0;
 
   if (checkPosition) {
     for (int i = debug ? DEPTH : 1; i <= DEPTH; i++) {
@@ -179,6 +180,8 @@ void perft::perftMain() {
       for (int i = 1; i <= nodeCounts.size(); i++) {
         int nodes = perft::perft(initialFen, i, false);
         int expected = nodeCounts[i - 1];
+
+        sumNodes += nodes;
 
         if (nodes != expected) {
           cout << "invalid node count. fen: " << initialFen << ", expected " << expected << ", got " << nodes << endl;
@@ -193,6 +196,7 @@ void perft::perftMain() {
   auto duration = duration_cast<nanoseconds>(time - timestamp).count();
 
   cout << "test took " << duration / 1e6 << "ms" << endl;
+  cout << "sum perft: " << sumNodes * 1e6 / duration << "ms" << endl;
   // cout << "calculateLegalMoves took " << calculateLegalMovesTime / 1e6 << " ms" << endl;
   // cout << "performMove took " << performMoveTime / 1e6 << " ms" << endl;
   // cout << "revertMove took " << revertMoveTime / 1e6 << " ms" << endl;

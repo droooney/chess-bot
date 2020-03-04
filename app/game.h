@@ -18,31 +18,36 @@ public:
   void     revertMove(MoveInfo* move);
 
 protected:
-  int                       bishopsCount;
+  int                       bishopsCount = 0;
   Piece*                    board[64];
   ZobristKey                castlingKeys[16];
   Piece*                    checkingPiece;
   ZobristKey                enPassantKeys[64];
-  bool                      isCheck;
-  bool                      isDoubleCheck;
-  bool                      isDraw;
+  bool                      isCheck = false;
+  bool                      isDoubleCheck = false;
+  bool                      isDraw = false;
   string                    fen;
   unordered_set<ZobristKey> keys;
   Piece*                    kings[2];
   int                       material[2];
   string                    moves;
-  Piece*                    noPiece;
-  int                       pawnCount;
-  ZobristKey                pawnKey;
+  Piece*                    noPiece = new Piece({
+                              .index  = -1,
+                              .type   = NO_PIECE,
+                              .color  = NO_COLOR,
+                              .square = NO_SQUARE
+                            });
+  int                       pawnCount = 0;
+  ZobristKey                pawnKey = 0ULL;
   Piece*                    pieces[2][64];
   int                       pieceCounts[2];
   ZobristKey                pieceKeys[2][6][64];
-  int                       pliesFor50MoveRule;
-  ZobristKey                positionKey;
-  vector<ZobristKey>        positions;
-  Castling                  possibleCastling;
-  Square                    possibleEnPassant;
-  Color                     turn;
+  int                       pliesFor50MoveRule = 0;
+  ZobristKey                positionKey = 0ULL;
+  vector<ZobristKey>        positions = vector<ZobristKey>();
+  Castling                  possibleCastling = NO_CASTLING;
+  Square                    possibleEnPassant = NO_SQUARE;
+  Color                     turn = WHITE;
   ZobristKey                turnKey;
 
   ZobristKey     generateKey();

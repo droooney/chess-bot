@@ -7,6 +7,26 @@
 
 using namespace std;
 
+template<typename T, int Size>
+struct List {
+public:
+  T* last;
+  T  list[Size];
+
+  const T* begin() const {
+    return this->list;
+  }
+  bool contains(T move) const {
+    return find(this->begin(), this->end(), move) != end();
+  }
+  const T* end() const {
+    return this->last;
+  }
+  size_t size() const {
+    return this->last - this->list;
+  }
+};
+
 template<typename T>
 ostream& operator<<(ostream &out, const vector<T> &v) {
   out << "{";

@@ -191,25 +191,6 @@ constexpr Square operator-=(Square &square, Direction direction) {
   return square = square - direction;
 }
 
-struct SquareList {
-public:
-  Square* last;
-  Square  list[64];
-
-  const Square* begin() const {
-    return this->list;
-  }
-  bool contains(Square move) const {
-    return find(this->begin(), this->end(), move) != end();
-  }
-  const Square* end() const {
-    return this->last;
-  }
-  size_t size() const {
-    return this->last - this->list;
-  }
-};
-
 struct Piece {
   int       index;
   PieceType type;
@@ -230,25 +211,6 @@ constexpr Move operator|(Move move, PieceType promotion) {
 constexpr Move operator|=(Move &move, PieceType promotion) {
   return move = move | promotion;
 }
-
-struct MoveList {
-public:
-  Move* last;
-  Move  list[256];
-
-  const Move* begin() const {
-    return this->list;
-  }
-  bool contains(Move move) const {
-    return find(this->begin(), this->end(), move) != end();
-  }
-  const Move* end() const {
-    return this->last;
-  }
-  size_t size() const {
-    return this->last - this->list;
-  }
-};
 
 struct MoveInfo {
   Move       move;

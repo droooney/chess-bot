@@ -96,7 +96,7 @@ Move* Game::getAllLegalMoves(Move* moves) {
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = this->pieces[this->turn][i];
     bool isPawnPromotion = piece->type == PAWN && gameUtils::rankOf(piece->square) == gameUtils::rank7(piece->color);
-    SquareList squareList = SquareList();
+    List<Square, 32> squareList = List<Square, 32>();
 
     squareList.last = this->getLegalMoves(squareList.list, piece, false);
 
@@ -239,7 +239,7 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     return moves;
   }
 
-  SquareList pseudoLegalMoves = SquareList();
+  List<Square, 32> pseudoLegalMoves = List<Square, 32>();
 
   pseudoLegalMoves.last = this->getPseudoLegalMoves(pseudoLegalMoves.list, piece);
 
@@ -567,7 +567,7 @@ bool Game::isNoMoves() {
   Piece** pieces = this->pieces[this->turn];
 
   for (int i = 0; i < this->pieceCounts[this->turn]; i++) {
-    SquareList squareList = SquareList();
+    List<Square, 32> squareList = List<Square, 32>();
 
     squareList.last = this->getLegalMoves(squareList.list, pieces[i], true);
 
@@ -660,18 +660,26 @@ MoveInfo Game::performMove(Move move) {
   PieceType pieceType = piece->type;
   Color pieceColor = piece->color;
   Color opponentColor = ~this->turn;
-  bool wasCheck = this->isCheck;
-  bool wasDoubleCheck = this->isDoubleCheck;
-  Piece* prevCheckingPiece = this->checkingPiece;
-  ZobristKey prevPositionKey = this->positionKey;
-  ZobristKey prevPawnKey = this->pawnKey;
   Square prevPossibleEnPassant = this->possibleEnPassant;
   Castling prevPossibleCastling = this->possibleCastling;
-  int prevPliesFor50MoveRule = this->pliesFor50MoveRule;
   bool isEnPassantCapture = pieceType == PAWN && to == this->possibleEnPassant;
   Piece* capturedPiece = this->board[isEnPassantCapture ? gameUtils::getEnPassantPieceSquare(to) : to];
   Piece* castlingRook = this->noPiece;
   ZobristKey positionPieceKeyChange = this->pieceKeys[pieceColor][pieceType][from] ^ this->pieceKeys[pieceColor][pieceType][to];
+  MoveInfo moveInfo = {
+    .move = move,
+    .movedPiece = piece,
+    .capturedPiece = capturedPiece,
+    .castlingRook = this->noPiece,
+    .wasCheck = this->isCheck,
+    .wasDoubleCheck = this->isDoubleCheck,
+    .prevCheckingPiece = this->checkingPiece,
+    .prevPositionKey = this->positionKey,
+    .prevPawnKey = this->pawnKey,
+    .prevPossibleEnPassant = prevPossibleEnPassant,
+    .prevPossibleCastling = prevPossibleCastling,
+    .prevPliesFor50MoveRule = this->pliesFor50MoveRule
+  };
 
   this->positionKey ^= positionPieceKeyChange;
 
@@ -716,7 +724,7 @@ MoveInfo Game::performMove(Move move) {
       newRookSquare = SQ_F8;
     }
 
-    castlingRook = this->board[rookSquare];
+    castlingRook = moveInfo.castlingRook = this->board[rookSquare];
 
     this->positionKey ^= (
       this->pieceKeys[castlingRook->color][castlingRook->type][castlingRook->square]
@@ -875,20 +883,7 @@ MoveInfo Game::performMove(Move move) {
     this->isDraw = true;
   }
 
-  return {
-    .move = move,
-    .movedPiece = piece,
-    .capturedPiece = capturedPiece,
-    .castlingRook = castlingRook,
-    .wasCheck = wasCheck,
-    .wasDoubleCheck = wasDoubleCheck,
-    .prevCheckingPiece = prevCheckingPiece,
-    .prevPositionKey = prevPositionKey,
-    .prevPawnKey = prevPawnKey,
-    .prevPossibleEnPassant = prevPossibleEnPassant,
-    .prevPossibleCastling = prevPossibleCastling,
-    .prevPliesFor50MoveRule = prevPliesFor50MoveRule
-  };
+  return moveInfo;
 }
 
 void Game::printBoard() {
