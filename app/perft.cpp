@@ -85,7 +85,9 @@ int perft::perft(string initialFen, int depth, bool useMap) {
 
     // auto timestamp = high_resolution_clock::now();
 
-    vector<Move> legalMoves = game.getAllLegalMoves();
+    MoveList legalMoves = MoveList();
+
+    legalMoves.last = game.getAllLegalMoves(legalMoves.list);
 
     // calculateLegalMovesTime += duration_cast<nanoseconds>(high_resolution_clock::now() - timestamp).count();
 
@@ -138,8 +140,11 @@ int perft::perft(string initialFen, int depth, bool useMap) {
 
   if (false) {
     MoveInfo moveInfo = game.performMove(gameUtils::uciToMove("a4b3"));
+    MoveList legalMoves = MoveList();
 
-    for (auto &move : game.getAllLegalMoves()) {
+    legalMoves.last = game.getAllLegalMoves(legalMoves.list);
+
+    for (auto &move : legalMoves) {
       cout << gameUtils::moveToUci(move) << ", ";
     }
 

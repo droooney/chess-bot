@@ -12,9 +12,10 @@ using namespace std;
 class Game {
 public:
   Game(const string &fen, const string &moves);
-  vector<Move>   getAllLegalMoves();
-  MoveInfo       performMove(Move move);
-  void           revertMove(MoveInfo* move);
+  ~Game();
+  Move*    getAllLegalMoves(Move* moveList);
+  MoveInfo performMove(Move move);
+  void     revertMove(MoveInfo* move);
 
 protected:
   int                       bishopsCount;
@@ -47,8 +48,8 @@ protected:
   ZobristKey     generateKey();
   vector<Square> getAttacks(Piece* piece);
   Piece*         getCheckingPiece();
-  vector<Square> getLegalMoves(Piece* piece, bool stopAfter1);
-  vector<Square> getPseudoLegalMoves(Piece* piece);
+  Square*        getLegalMoves(Square* squareList, Piece* piece, bool stopAfter1);
+  Square*        getPseudoLegalMoves(Square* squareList, Piece* piece);
   Piece*         getSliderBehind(Square square1, Square square2, Color color);
   bool           isDirectionBlocked(Square square1, Square square2);
   bool           isEndgame();

@@ -29,9 +29,9 @@ Game::Game(const string &fen, const string &moves) {
   this->fen = fen;
   this->moves = moves;
   this->pawnCount = 0;
-  this->pawnKey = 0LL;
+  this->pawnKey = 0ULL;
   this->pliesFor50MoveRule = 0;
-  this->positionKey = 0LL;
+  this->positionKey = 0ULL;
   this->possibleCastling = NO_CASTLING;
   this->possibleEnPassant = NO_SQUARE;
   this->turn = WHITE;
@@ -64,6 +64,16 @@ Game::Game(const string &fen, const string &moves) {
   this->setStartingData();
 }
 
+Game::~Game() {
+  delete this->noPiece;
+
+  for (Color color = WHITE; color < NO_COLOR; ++color) {
+    for (int i = 0; i < this->pieceCounts[color]; i++) {
+      delete this->pieces[color][i];
+    }
+  }
+}
+
 ZobristKey Game::generateKey() {
   ZobristKey key = 0ULL;
 
@@ -80,24 +90,26 @@ ZobristKey Game::generateKey() {
   return key;
 }
 
-vector<Move> Game::getAllLegalMoves() {
-  vector<Move> moves;
+Move* Game::getAllLegalMoves(Move* moves) {
   int pieceCount = this->pieceCounts[this->turn];
 
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = this->pieces[this->turn][i];
     bool isPawnPromotion = piece->type == PAWN && gameUtils::rankOf(piece->square) == gameUtils::rank7(piece->color);
+    SquareList squareList = SquareList();
 
-    for (auto &square : this->getLegalMoves(piece, false)) {
+    squareList.last = this->getLegalMoves(squareList.list, piece, false);
+
+    for (auto &square : squareList) {
       Move move = gameUtils::move(piece->square, square);
 
       if (isPawnPromotion) {
-        moves.push_back(move | QUEEN);
-        moves.push_back(move | KNIGHT);
-        moves.push_back(move | ROOK);
-        moves.push_back(move | BISHOP);
+        *moves++ = move | QUEEN;
+        *moves++ = move | KNIGHT;
+        *moves++ = move | ROOK;
+        *moves++ = move | BISHOP;
       } else {
-        moves.push_back(move);
+        *moves++ = move;
       }
     }
   }
@@ -149,11 +161,11 @@ Piece* Game::getCheckingPiece() {
   return this->noPiece;
 }
 
-vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
+Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
   bool isKing = piece->type == KING;
 
   if (this->isDoubleCheck && !isKing) {
-    return {};
+    return moves;
   }
 
   Square kingSquare = this->kings[this->turn]->square;
@@ -169,7 +181,7 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
     !isKing
     && gameUtils::areAligned(piece->square, kingSquare)
     && !this->isDirectionBlocked(piece->square, kingSquare)
-    ) {
+  ) {
     pinningPiece = this->getSliderBehind(kingSquare, piece->square, opponentColor);
     isPinned = gameUtils::isPiece(pinningPiece);
 
@@ -189,7 +201,7 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
     && isPawn
     && this->possibleEnPassant != NO_SQUARE
     && find(pawnAttacks->begin(), pawnAttacks->end(), this->possibleEnPassant) != pawnAttacks->end()
-    ) {
+  ) {
     Piece* capturedPawn = this->board[gameUtils::getEnPassantPieceSquare(this->possibleEnPassant)];
 
     this->board[capturedPawn->square] = this->noPiece;
@@ -203,7 +215,7 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
   }
 
   if (isPinned && this->isCheck) {
-    return {};
+    return moves;
   }
 
   if (
@@ -224,16 +236,22 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
       )
     )
   ) {
-    return {};
+    return moves;
   }
 
-  vector<Square> pseudoLegalMoves = this->getPseudoLegalMoves(piece);
+  SquareList pseudoLegalMoves = SquareList();
+
+  pseudoLegalMoves.last = this->getPseudoLegalMoves(pseudoLegalMoves.list, piece);
 
   if (!this->isCheck && !isKing && !isPinned && (!isPawn || !isEnPassantPinned)) {
-    return pseudoLegalMoves;
+    for (auto &square : pseudoLegalMoves) {
+      *moves++ = square;
+    }
+
+    return moves;
   }
 
-  vector<Square> legalMoves;
+  Square* start = moves;
   Square prevSquare = piece->square;
 
   this->board[prevSquare] = this->noPiece;
@@ -265,7 +283,7 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
 
     if (!isKing) {
       if (!isPinned || gameUtils::areOnOneLine(kingSquare, square, pinningPiece->square)) {
-        legalMoves.push_back(square);
+        *moves++ = square;
 
         if (stopAfter1) {
           break;
@@ -285,7 +303,7 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
     piece->square = square;
 
     if (!this->isInCheck()) {
-      legalMoves.push_back(square);
+      *moves++ = square;
     }
 
     this->board[square] = this->noPiece;
@@ -294,7 +312,7 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
       this->board[capturedPiece->square] = capturedPiece;
     }
 
-    if (stopAfter1 && !legalMoves.empty()) {
+    if (stopAfter1 && moves != start) {
       break;
     }
   }
@@ -302,11 +320,10 @@ vector<Square> Game::getLegalMoves(Piece *piece, bool stopAfter1) {
   this->board[prevSquare] = piece;
   piece->square = prevSquare;
 
-  return legalMoves;
+  return moves;
 }
 
-vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
-  vector<Square> moves;
+Square* Game::getPseudoLegalMoves(Square* moves, Piece *piece) {
   Piece* pieceInSquare;
 
   if (gameUtils::isSlider(piece)) {
@@ -316,12 +333,12 @@ vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
 
         if (gameUtils::isPiece(pieceInSquare)) {
           if (pieceInSquare->color != piece->color) {
-            moves.push_back(square);
+            *moves++ = square;
           }
 
           break;
         } else {
-          moves.push_back(square);
+          *moves++ = square;
         }
       }
     }
@@ -330,7 +347,7 @@ vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
       pieceInSquare = this->board[square];
 
       if (!gameUtils::isPiece(pieceInSquare) || pieceInSquare->color != piece->color) {
-        moves.push_back(square);
+        *moves++ = square;
       }
     }
   } else if (piece->type == KING) {
@@ -338,7 +355,7 @@ vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
       pieceInSquare = this->board[square];
 
       if (!gameUtils::isPiece(pieceInSquare) || pieceInSquare->color != piece->color) {
-        moves.push_back(square);
+        *moves++ = square;
       }
     }
 
@@ -398,7 +415,7 @@ vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
         }
 
         if (middleSquaresEmpty && !this->isSquareAttacked(newRookSquare)) {
-          moves.push_back(newKingSquare);
+          *moves++ = newKingSquare;
         }
       }
     }
@@ -408,26 +425,26 @@ vector<Square> Game::getPseudoLegalMoves(Piece *piece) {
 
     // advance move
     if (!gameUtils::isPiece(this->board[squareInFront])) {
-      moves.push_back(squareInFront);
+      *moves++ = squareInFront;
 
       // double advance move
       if (gameUtils::rankOf(piece->square) == gameUtils::rank2(piece->color)) {
         squareInFront += direction;
 
         if (!gameUtils::isPiece(this->board[squareInFront])) {
-          moves.push_back(squareInFront);
+          *moves++ = squareInFront;
         }
       }
     }
 
     for (auto &square : *gameUtils::pawnAttacks[piece->color][piece->square]) {
       if (this->possibleEnPassant == square) {
-        moves.push_back(square);
+        *moves++ = square;
       } else {
         pieceInSquare = this->board[square];
 
         if (gameUtils::isPiece(pieceInSquare) && pieceInSquare->color != piece->color) {
-          moves.push_back(square);
+          *moves++ = square;
         }
       }
     }
@@ -550,7 +567,11 @@ bool Game::isNoMoves() {
   Piece** pieces = this->pieces[this->turn];
 
   for (int i = 0; i < this->pieceCounts[this->turn]; i++) {
-    if (this->getLegalMoves(pieces[i], true).size() != 0) {
+    SquareList squareList = SquareList();
+
+    squareList.last = this->getLegalMoves(squareList.list, pieces[i], true);
+
+    if (squareList.size() != 0) {
       return false;
     }
   }
