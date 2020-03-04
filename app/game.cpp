@@ -873,7 +873,7 @@ MoveInfo Game::performMove(Move move) {
   this->isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
   this->checkingPiece = checkingPiece;
 
-  this->positions.push_back(this->positionKey);
+  *this->positions.last++ = this->positionKey;
 
   if (
     this->pliesFor50MoveRule >= 100
@@ -952,7 +952,7 @@ void Game::revertMove(MoveInfo* move) {
   this->isDoubleCheck = move->wasDoubleCheck;
   this->checkingPiece = move->prevCheckingPiece;
 
-  this->positions.pop_back();
+  this->positions.last--;
 
   this->positionKey = move->prevPositionKey;
   this->pawnKey = move->prevPawnKey;
@@ -1048,5 +1048,5 @@ void Game::setStartingData() {
   this->isDoubleCheck = this->isInDoubleCheck();
   this->checkingPiece = this->getCheckingPiece();
 
-  this->positions.push_back(this->positionKey);
+  *this->positions.last++ = this->positionKey;
 }

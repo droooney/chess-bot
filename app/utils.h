@@ -10,8 +10,8 @@ using namespace std;
 template<typename T, int Size>
 struct List {
 public:
-  T* last;
   T  list[Size];
+  T* last = list;
 
   const T* begin() const {
     return this->list;

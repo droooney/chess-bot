@@ -3,6 +3,7 @@
 #include <unordered_set>
 
 #include "gameUtils.h"
+#include "utils.h"
 
 using namespace std;
 
@@ -44,7 +45,7 @@ protected:
   ZobristKey                pieceKeys[2][6][64];
   int                       pliesFor50MoveRule = 0;
   ZobristKey                positionKey = 0ULL;
-  vector<ZobristKey>        positions = vector<ZobristKey>();
+  List<ZobristKey, 256>     positions = List<ZobristKey, 256>();
   Castling                  possibleCastling = NO_CASTLING;
   Square                    possibleEnPassant = NO_SQUARE;
   Color                     turn = WHITE;
