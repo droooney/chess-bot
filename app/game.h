@@ -26,7 +26,6 @@ protected:
   ZobristKey                enPassantKeys[64];
   bool                      isCheck = false;
   bool                      isDoubleCheck = false;
-  bool                      isDraw = false;
   string                    fen;
   unordered_set<ZobristKey> keys;
   Piece*                    kings[2];
@@ -58,6 +57,7 @@ protected:
   Square*        getPseudoLegalMoves(Square* squareList, Piece* piece);
   Piece*         getSliderBehind(Square square1, Square square2, Color color);
   bool           isDirectionBlocked(Square square1, Square square2);
+  bool           isDraw();
   bool           isEndgame();
   bool           isInCheck();
   bool           isInDoubleCheck();

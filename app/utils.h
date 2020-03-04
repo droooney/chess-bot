@@ -16,13 +16,13 @@ public:
   const T* begin() const {
     return this->list;
   }
-  bool contains(T move) const {
+  bool     contains(T move) const {
     return find(this->begin(), this->end(), move) != end();
   }
   const T* end() const {
     return this->last;
   }
-  size_t size() const {
+  size_t   size() const {
     return this->last - this->list;
   }
 };

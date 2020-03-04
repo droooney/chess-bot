@@ -12,29 +12,9 @@
 using namespace std;
 
 Game::Game(const string &fen, const string &moves) {
-  Piece* noPiece = new Piece({
-    .index  = -1,
-    .type   = NO_PIECE,
-    .color  = NO_COLOR,
-    .square = NO_SQUARE
-  });
-
-  this->noPiece = noPiece;
-
-  this->bishopsCount = 0;
   this->checkingPiece = this->noPiece;
-  this->isCheck = false;
-  this->isDoubleCheck = false;
-  this->isDraw = false;
   this->fen = fen;
   this->moves = moves;
-  this->pawnCount = 0;
-  this->pawnKey = 0ULL;
-  this->pliesFor50MoveRule = 0;
-  this->positionKey = 0ULL;
-  this->possibleCastling = NO_CASTLING;
-  this->possibleEnPassant = NO_SQUARE;
-  this->turn = WHITE;
   this->turnKey = this->generateKey();
 
   for (auto &piece : this->board) {
@@ -489,6 +469,14 @@ bool Game::isDirectionBlocked(Square square1, Square square2) {
   return false;
 }
 
+bool Game::isDraw() {
+  return (
+    this->pliesFor50MoveRule >= 100
+    || count(this->positions.end() - (this->pliesFor50MoveRule + 1), this->positions.end(), this->positionKey) >= 3
+    || this->isInsufficientMaterial()
+  );
+}
+
 bool Game::isEndgame() {
   return (
     this->pawnCount < 5
@@ -821,9 +809,11 @@ MoveInfo Game::performMove(Move move) {
   PieceType checkingPieceType = possibleNormalCheckingPiece->type;
 
   if (checkingPieceType == KNIGHT || checkingPieceType == PAWN) {
-    vector<Square> attacks = this->getAttacks(possibleNormalCheckingPiece);
+    vector<Square>* attacks = checkingPieceType == KNIGHT
+      ? gameUtils::knightAttacks[possibleNormalCheckingPiece->square]
+      : gameUtils::pawnAttacks[this->turn][possibleNormalCheckingPiece->square];
 
-    if (find(attacks.begin(), attacks.end(), opponentKingSquare) != attacks.end()) {
+    if (find(attacks->begin(), attacks->end(), opponentKingSquare) != attacks->end()) {
       isCheck = isNormalCheck = true;
       checkingPiece = possibleNormalCheckingPiece;
     }
@@ -874,14 +864,6 @@ MoveInfo Game::performMove(Move move) {
   this->checkingPiece = checkingPiece;
 
   *this->positions.last++ = this->positionKey;
-
-  if (
-    this->pliesFor50MoveRule >= 100
-    || count(this->positions.end() - (this->pliesFor50MoveRule + 1), this->positions.end(), this->positionKey) >= 2
-    || this->isInsufficientMaterial()
-  ) {
-    this->isDraw = true;
-  }
 
   return moveInfo;
 }
@@ -960,7 +942,6 @@ void Game::revertMove(MoveInfo* move) {
   this->possibleCastling = move->prevPossibleCastling;
   this->pliesFor50MoveRule = move->prevPliesFor50MoveRule;
   this->turn = ~this->turn;
-  this->isDraw = false;
 }
 
 void Game::setStartingData() {
