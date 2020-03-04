@@ -279,6 +279,9 @@ namespace gameUtils {
   bool             areAligned(Square square1, Square square2);
   bool             areOnOneLine(Square square1, Square square2, Square square3);
   bool             arePieceAligned(Square square1, Square square2, PieceType pieceType);
+  inline File      fileOf(Square square) {
+    return File(square & 7);
+  };
   Square           getEnPassantPieceSquare(Square enPassantSquare);
   int              getDistance(Square square1, Square square2);
   inline Square    getMoveFrom(Move move) {
@@ -294,16 +297,10 @@ namespace gameUtils {
   inline Square    getMoveTo(Move move) {
     return Square(move >> 3 & 63);
   };
-  bool             isSquareBetween(Square square1, Square square2, Square square3);
-  inline bool      isPiece(Piece* piece) {
-    return piece->type != NO_PIECE;
-  };
   inline bool      isSlider(Piece* piece) {
     return piece->type == QUEEN || piece->type == ROOK || piece->type == BISHOP;
   };
-  inline File      fileOf(Square square) {
-    return File(square & 7);
-  };
+  bool             isSquareBetween(Square square1, Square square2, Square square3);
   Square           literalToSquare(const string &square);
   inline Move      move(Square from, Square to) {
     return Move(from << 9 | to << 3);
