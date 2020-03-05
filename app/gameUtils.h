@@ -76,6 +76,14 @@ enum PieceType {
   NO_PIECE
 };
 
+constexpr PieceType operator++(PieceType &pieceType) {
+  return pieceType = PieceType(pieceType + 1);
+}
+
+constexpr PieceType operator--(PieceType &pieceType) {
+  return pieceType = PieceType(pieceType - 1);
+}
+
 enum File : int {
   FILE_A,
   FILE_B,
@@ -230,17 +238,25 @@ struct MoveInfo {
 typedef int PieceSquareTable[64];
 
 namespace gameUtils {
-  extern PieceSquareTable          allPieceSquareTables[2][6][2];
-  extern vector<Square>*           behindSquares[64][64];
-  const int                        diagonalIncrements[4][2] = {
+  extern PieceSquareTable         allPieceSquareTables[2][6][2];
+  extern bool                     areAlignedDiagonally[64][64];
+  extern bool                     areAlignedOrthogonally[64][64];
+  extern bool                     areAligned[64][64];
+  extern bool                     areOnOneLine[64][64][64];
+  extern bool                     arePieceAligned[6][64][64];
+  extern vector<Square>*          behindSquares[64][64];
+  const int                       diagonalIncrements[4][2] = {
     {+1, +1},
     {-1, +1},
     {+1, -1},
     {-1, -1}
   };
-  extern PieceSquareTable          egWhiteKingPieceSquareTable;
-  extern vector<Square>*           kingAttacks[64];
-  const int                        kingIncrements[8][2] = {
+  extern PieceSquareTable         egWhiteKingPieceSquareTable;
+  extern Square                   enPassantPieceSquares[64];
+  extern File                     files[64];
+  extern bool                     isSquareBetween[64][64][64];
+  extern vector<Square>*          kingAttacks[64];
+  const int                       kingIncrements[8][2] = {
     {+1, +1},
     {-1, +1},
     {+1, -1},
@@ -250,8 +266,8 @@ namespace gameUtils {
     {+0, +1},
     {+0, -1}
   };
-  extern vector<Square>*           knightAttacks[64];
-  const int                        knightIncrements[8][2] = {
+  extern vector<Square>*          knightAttacks[64];
+  const int                       knightIncrements[8][2] = {
     {+1, +2},
     {-1, +2},
     {+1, -2},
@@ -261,28 +277,25 @@ namespace gameUtils {
     {+2, -1},
     {-2, -1}
   };
-  extern vector<Square>*           middleSquares[64][64];
-  const int                        orthogonalIncrements[4][2] = {
+  extern vector<Square>*          middleSquares[64][64];
+  const int                       orthogonalIncrements[4][2] = {
     {+1, +0},
     {-1, +0},
     {+0, +1},
     {+0, -1}
   };
-  extern vector<Square>*           pawnAttacks[2][64];
-  extern PieceSquareTable          mgWhitePieceSquareTables[6];
-  const string                     pieces = "kqrbnp";
-  const int                        piecesWorth[6] = {1000, 16, 8, 5, 5, 1};
-  extern vector<vector<Square>*>*  slidingAttacks[6][64];
+  extern vector<Square>*          pawnAttacks[2][64];
+  extern Rank                     ranks[64];
+  extern int                      squareColors[64];
+  extern PieceSquareTable         mgWhitePieceSquareTables[6];
+  const string                    pieces = "kqrbnp";
+  const int                       piecesWorth[6] = {1000, 16, 8, 5, 5, 1};
+  extern vector<vector<Square>*>* slidingAttacks[6][64];
+  extern Square                   squares[8][8];
 
-  bool             areAlignedDiagonally(Square square1, Square square2);
-  bool             areAlignedOrthogonally(Square square1, Square square2);
-  bool             areAligned(Square square1, Square square2);
-  bool             areOnOneLine(Square square1, Square square2, Square square3);
-  bool             arePieceAligned(Square square1, Square square2, PieceType pieceType);
   inline File      fileOf(Square square) {
     return File(square & 7);
   };
-  Square           getEnPassantPieceSquare(Square enPassantSquare);
   int              getDistance(Square square1, Square square2);
   inline Square    getMoveFrom(Move move) {
     return Square(move >> 9);
@@ -300,7 +313,6 @@ namespace gameUtils {
   inline bool      isSlider(Piece* piece) {
     return piece->type == QUEEN || piece->type == ROOK || piece->type == BISHOP;
   };
-  bool             isSquareBetween(Square square1, Square square2, Square square3);
   Square           literalToSquare(const string &square);
   inline Move      move(Square from, Square to) {
     return Move(from << 9 | to << 3);
@@ -327,7 +339,6 @@ namespace gameUtils {
   inline Square    square(Rank rank, File file) {
     return Square(rank << 3 | file);
   };
-  int              squareColor(Square square);
   string           squareToLiteral(Square square);
   Move             uciToMove(const string &uci);
   vector<Square>   traverseDirection(Square square, int incrementRank, int incrementFile, bool stopAfter1);

@@ -25,11 +25,44 @@ void init::init() {
 
   for (Square square1 = SQ_A1; square1 < NO_SQUARE; ++square1) {
     for (Square square2 = SQ_A1; square2 < NO_SQUARE; ++square2) {
+      for (Square square3 = SQ_A1; square3 < NO_SQUARE; ++square3) {
+        gameUtils::areOnOneLine[square1][square2][square3] = (
+          (gameUtils::rankOf(square1) - gameUtils::rankOf(square2)) * (gameUtils::fileOf(square1) - gameUtils::fileOf(square3))
+          == (gameUtils::rankOf(square1) - gameUtils::rankOf(square3)) * (gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
+        );
+        gameUtils::isSquareBetween[square1][square2][square3] = (
+          gameUtils::areOnOneLine[square1][square2][square3]
+          && (square1 < square3 ? square1 < square2 && square2 < square3 : square1 > square2 && square2 > square3)
+        );
+      }
+
+      gameUtils::areAlignedDiagonally[square1][square2] = (
+        abs(gameUtils::rankOf(square1) - gameUtils::rankOf(square2))
+        == abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
+      );
+      gameUtils::areAlignedOrthogonally[square1][square2] = (
+        gameUtils::rankOf(square1) == gameUtils::rankOf(square2)
+        || gameUtils::fileOf(square1) == gameUtils::fileOf(square2)
+      );
+      gameUtils::areAligned[square1][square2] = (
+        gameUtils::areAlignedDiagonally[square1][square2] || gameUtils::areAlignedOrthogonally[square1][square2]
+      );
+
+      for (PieceType pieceType = KING; pieceType < NO_PIECE; ++pieceType) {
+        gameUtils::arePieceAligned[pieceType][square1][square2] = (
+          pieceType == QUEEN
+            ? gameUtils::areAligned[square1][square2]
+            : pieceType == ROOK
+              ? gameUtils::areAlignedOrthogonally[square1][square2]
+              : pieceType == BISHOP && gameUtils::areAlignedDiagonally[square1][square2]
+        );
+      }
+
       vector<Square>* middleSquares = gameUtils::middleSquares[square1][square2] = new vector<Square>;
       vector<Square>* behindSquares = gameUtils::behindSquares[square1][square2] = new vector<Square>;
 
       // fill middle squares
-      if (square1 != square2 && gameUtils::areAligned(square1, square2)) {
+      if (square1 != square2 && gameUtils::areAligned[square1][square2]) {
         int incrementFile = utils::sign(gameUtils::fileOf(square2) - gameUtils::fileOf(square1));
         int incrementRank = utils::sign(gameUtils::rankOf(square2) - gameUtils::rankOf(square1));
         Square square = square1;
@@ -49,7 +82,7 @@ void init::init() {
       }
 
       // fill behind squares
-      if (square1 != square2 && gameUtils::areAligned(square1, square2)) {
+      if (square1 != square2 && gameUtils::areAligned[square1][square2]) {
         int incrementFile = utils::sign(gameUtils::fileOf(square2) - gameUtils::fileOf(square1));
         int incrementRank = utils::sign(gameUtils::rankOf(square2) - gameUtils::rankOf(square1));
 
@@ -134,5 +167,11 @@ void init::init() {
         }
       }
     }
+
+    File file = gameUtils::files[square1] = gameUtils::fileOf(square1);
+    Rank rank = gameUtils::ranks[square1] = gameUtils::rankOf(square1);
+    gameUtils::squares[rank][file] = square1;
+    gameUtils::enPassantPieceSquares[square1] = gameUtils::square(rank == RANK_3 ? RANK_4 : rank == RANK_6 ? RANK_5 : rank,file);
+    gameUtils::squareColors[square1] = (rank + file) % 2;
   }
 }

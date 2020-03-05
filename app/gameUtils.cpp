@@ -7,6 +7,11 @@
 using namespace std;
 
 PieceSquareTable gameUtils::allPieceSquareTables[2][6][2];
+bool gameUtils::areAlignedDiagonally[64][64];
+bool gameUtils::areAlignedOrthogonally[64][64];
+bool gameUtils::areAligned[64][64];
+bool gameUtils::areOnOneLine[64][64][64];
+bool gameUtils::arePieceAligned[6][64][64];
 vector<Square>* gameUtils::behindSquares[64][64];
 PieceSquareTable gameUtils::egWhiteKingPieceSquareTable = {
   -50,-40,-30,-20,-20,-30,-40,-50,
@@ -18,6 +23,9 @@ PieceSquareTable gameUtils::egWhiteKingPieceSquareTable = {
   -30,-30,  0,  0,  0,  0,-30,-30,
   -50,-30,-30,-30,-30,-30,-30,-50
 };
+Square gameUtils::enPassantPieceSquares[64];
+File gameUtils::files[64];
+bool gameUtils::isSquareBetween[64][64][64];
 vector<Square>* gameUtils::kingAttacks[64];
 vector<Square>* gameUtils::knightAttacks[64];
 vector<Square>* gameUtils::middleSquares[64][64];
@@ -95,53 +103,15 @@ PieceSquareTable gameUtils::mgWhitePieceSquareTables[6] = {
   }
 };
 vector<Square>* gameUtils::pawnAttacks[2][64];
+Rank gameUtils::ranks[64];
+int gameUtils::squareColors[64];
 vector<vector<Square>*>* gameUtils::slidingAttacks[6][64];
-
-bool gameUtils::areAlignedDiagonally(Square square1, Square square2) {
-  return abs(gameUtils::rankOf(square1) - gameUtils::rankOf(square2)) == abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2));
-}
-
-bool gameUtils::areAlignedOrthogonally(Square square1, Square square2) {
-  return gameUtils::rankOf(square1) == gameUtils::rankOf(square2) || gameUtils::fileOf(square1) == gameUtils::fileOf(square2);
-}
-
-bool gameUtils::areAligned(Square square1, Square square2) {
-  return gameUtils::areAlignedDiagonally(square1, square2) || gameUtils::areAlignedOrthogonally(square1, square2);
-}
-
-bool gameUtils::areOnOneLine(Square square1, Square square2, Square square3) {
-  Rank rank1 = gameUtils::rankOf(square1);
-  File file1 = gameUtils::fileOf(square1);
-
-  return (
-    (rank1 - gameUtils::rankOf(square2)) * (file1 - gameUtils::fileOf(square3))
-    == (rank1 - gameUtils::rankOf(square3)) * (file1 - gameUtils::fileOf(square2))
-  );
-}
-
-bool gameUtils::arePieceAligned(Square square1, Square square2, PieceType pieceType) {
-  return pieceType == QUEEN
-    ? gameUtils::areAligned(square1, square2)
-    : pieceType == ROOK
-      ? gameUtils::areAlignedOrthogonally(square1, square2)
-      : pieceType == BISHOP && gameUtils::areAlignedDiagonally(square1, square2);
-}
-
-Square gameUtils::getEnPassantPieceSquare(Square enPassantSquare) {
-  return gameUtils::square(
-    gameUtils::rankOf(enPassantSquare) == RANK_3 ? RANK_4 : RANK_5,
-    gameUtils::fileOf(enPassantSquare)
-  );
-}
+Square gameUtils::squares[8][8];
 
 int gameUtils::getDistance(Square square1, Square square2) {
-  return abs(Rank(square1) - Rank(square2)) + abs(File(square1) - File(square2));
-}
-
-bool gameUtils::isSquareBetween(Square square1, Square square2, Square square3) {
   return (
-    gameUtils::areOnOneLine(square1, square2, square3)
-    && (square1 < square3 ? square1 < square2 && square2 < square3 : square1 > square2 && square2 > square3)
+    abs(gameUtils::rankOf(square1) - gameUtils::rankOf(square2))
+    + abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
   );
 }
 
@@ -158,10 +128,6 @@ string gameUtils::moveToUci(Move move) {
     : string(1, gameUtils::pieces[movePromotion]);
 
   return from + to + promotion;
-}
-
-int gameUtils::squareColor(Square square) {
-  return (gameUtils::rankOf(square) + gameUtils::fileOf(square)) % 2;
 }
 
 string gameUtils::squareToLiteral(Square square) {
