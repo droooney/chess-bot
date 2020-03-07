@@ -1,17 +1,412 @@
+#include <ctime>
+#include <iostream>
+#include <random>
 #include <string>
 #include <vector>
 
-#include "game.h"
 #include "bot.h"
+#include "game.h"
+#include "gameUtils.h"
+#include "utils.h"
 
 using namespace std;
 
-Bot::Bot(const string &fen, const string &moves) : Game(fen, moves) {
+const int SEARCH_DEPTH = 3 * 2;
+const int OPTIMAL_MOVE_THRESHOLD = 50;
 
+Bot::Bot(const string &fen, Color color) : Game(fen) {
+  this->color = color;
 }
 
-vector<string> Bot::getOptimalMoves() {
-  vector<string> moves;
+Score Bot::eval(int depth) {
+  if (this->isCheck && this->isNoMoves()) {
+    return this->getMateScore(depth);
+  }
 
-  return moves;
+  if (this->isDraw() || (!this->isCheck && this->isNoMoves())) {
+    return SCORE_EQUAL;
+  }
+
+  auto currentPawnScore = this->evaluatedPawnPositions[this->turn].find(this->pawnKey);
+  bool foundPawnScore = currentPawnScore != this->evaluatedPawnPositions[this->turn].end();
+  PositionInfo positionInfo;
+
+  for (Color color = WHITE; color < NO_COLOR; ++color) {
+    Piece** pieces = this->pieces[color];
+    int pieceCount = this->pieceCounts[color];
+
+    for (int i = 0; i < pieceCount; i++) {
+      Piece* piece = pieces[i];
+
+      List<Square, 32>* attacks = &positionInfo.attacks[color][i];
+
+      attacks->last = this->getAttacks(attacks->list, piece);
+
+      if (piece->type == PAWN) {
+        Rank rank = gameUtils::squareRanks[piece->square];
+        File file = gameUtils::squareFiles[piece->square];
+
+        if (foundPawnScore) {
+          positionInfo.pawnFiles[color][file].min = rank;
+          positionInfo.pawnFiles[color][file].max = rank;
+        } else {
+          FileInfo* fileInfo = &positionInfo.pawnFiles[color][file];
+
+          if (fileInfo->min == NO_RANK) {
+            fileInfo->min = rank;
+            fileInfo->max = rank;
+          } else {
+            fileInfo->min = min(rank, fileInfo->min);
+            fileInfo->max = max(rank, fileInfo->max);
+          }
+
+          positionInfo.pawns[color].push(piece);
+        }
+      }
+
+      for (auto &square : *attacks) {
+        if (this->board[square] != this->noPiece) {
+          positionInfo.squareAttacks[color][square].push(piece->type);
+        }
+      }
+    }
+  }
+
+  Score pawnsScore = foundPawnScore
+    ? currentPawnScore->second
+    : this->evalPawns(this->turn, &positionInfo) - this->evalPawns(~this->turn, &positionInfo);
+
+  if (!foundPawnScore) {
+    this->evaluatedPawnPositions[this->turn][this->pawnKey] = pawnsScore;
+  }
+
+  return pawnsScore + this->evalColor(this->turn, &positionInfo) - this->evalColor(~this->turn, &positionInfo);
+}
+
+Score Bot::evalColor(Color color, PositionInfo *positionInfo) {
+  return this->evalKingSafety(color) + this->evalPieces(color, positionInfo);
+}
+
+Score Bot::evalKingSafety(Color color) {
+  return SCORE_EQUAL;
+}
+
+Score Bot::evalPawns(Color color, PositionInfo *positionInfo) {
+  return SCORE_EQUAL;
+}
+
+Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
+  bool isEndgame = this->isEndgame();
+  Piece** pieces = this->pieces[color];
+  int pieceCount = this->pieceCounts[color];
+  int bishopsCount = 0;
+  int score = 0;
+
+  for (int i = 0; i < pieceCount; i++) {
+    Piece* piece = pieces[i];
+    Rank rank = gameUtils::squareRanks[piece->square];
+    File file = gameUtils::squareFiles[piece->square];
+
+    // piece-square tables
+    score += 10 * gameUtils::allPieceSquareTables[color][piece->type][isEndgame][piece->square];
+
+    // development
+    score += (
+      (
+        (piece->type == KNIGHT || piece->type == BISHOP)
+        && rank == gameUtils::rank1(color)
+      )
+        ? -300
+        : (
+          piece->type == PAWN
+          && (file == FILE_D || file == FILE_E)
+          && rank == gameUtils::rank2(color)
+        )
+          ? this->board[piece->square + (color == WHITE ? NORTH : SOUTH)]
+            ? -1000
+            : -300
+          : 0
+    );
+
+    if (piece->type == BISHOP) {
+      bishopsCount++;
+    }
+  }
+
+  return Score(score + this->material[color] * 1000 + (bishopsCount >= 2 ? 500 : 0));
+}
+
+Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
+  if (depth == SEARCH_DEPTH) {
+    auto currentScore = this->evaluatedPositions.find(this->positionKey);
+    bool found = currentScore != this->evaluatedPositions.end();
+    Score score = found ? currentScore->second : this->eval(depth);
+
+    if (!found) {
+      this->evaluatedPositions[this->positionKey] = score;
+    }
+
+    this->nodes++;
+
+    return score;
+  }
+
+  if (this->isDraw()) {
+    return SCORE_EQUAL;
+  }
+
+  List<Move, 256> legalMoves;
+
+  legalMoves.last = this->getAllLegalMoves(legalMoves.list);
+
+  if (legalMoves.empty()) {
+    return this->isCheck ? this->getMateScore(depth) : SCORE_EQUAL;
+  }
+
+  bool isEndgame = this->isEndgame();
+  List<MoveWithScore, 256> legalMovesWithScores;
+
+  legalMovesWithScores.last += legalMoves.size();
+
+  for (int i = 0; i < legalMoves.size(); i++) {
+    legalMovesWithScores[i].move = legalMoves[i];
+    legalMovesWithScores[i].score = this->moveScore(legalMoves[i], isEndgame);
+  }
+
+  sort(
+    legalMovesWithScores.list,
+    legalMovesWithScores.last,
+    [](auto &move1, auto &move2) { return move2.score > move1.score;}
+  );
+
+  for (int i = 0; i < legalMovesWithScores.size(); i++) {
+    MoveInfo moveInfo = this->performMove(legalMovesWithScores[i].move);
+    Score score = -this->executeNegamax(depth + 1, -beta, -alpha);
+
+    this->revertMove(&moveInfo);
+
+    if (score >= beta) {
+      if (i == 0) {
+        this->firstCutNodesCount++;
+      }
+
+      this->cutNodesCount++;
+
+      return beta;
+    }
+
+    if (score > alpha) {
+      alpha = score;
+    }
+  }
+
+  return alpha;
+}
+
+Score Bot::getMateScore(int depth) {
+  return Score(-(MATE_SCORE - depth));
+}
+
+Move Bot::getOptimalMove() {
+  List<Move, 256> legalMoves;
+
+  legalMoves.last = this->getAllLegalMoves(legalMoves.list);
+
+  if (legalMoves.empty()) {
+    return NO_MOVE;
+  }
+
+  if (legalMoves.size() == 1) {
+    cout << "only move " << utils::formatString(gameUtils::moveToUci(legalMoves[0]), {"red", "bold"}) << endl;
+
+    return legalMoves[0];
+  }
+
+  List<MoveWithScore, 256> legalMovesWithScores;
+
+  legalMovesWithScores.last += legalMoves.last - legalMoves.list;
+
+  for (int i = 0; i < legalMoves.size(); i++) {
+    MoveInfo moveInfo = this->performMove(legalMoves[i]);
+    Score score = -this->eval(1);
+
+    this->revertMove(&moveInfo);
+
+    legalMovesWithScores[i].move = legalMoves[i];
+    legalMovesWithScores[i].score = score;
+  }
+
+  sort(
+    legalMovesWithScores.list, legalMovesWithScores.last,
+    [](auto &move1, auto &move2) { return move2.score >= move1.score; }
+  );
+
+  List<MoveWithScore, 256> optimalMoves;
+
+  for (auto &[move, _] : legalMovesWithScores) {
+    MoveInfo moveInfo = this->performMove(move);
+    Score score = -this->executeNegamax(
+      1,
+      -INFINITE_SCORE,
+      -(optimalMoves.empty() ? -INFINITE_SCORE : optimalMoves[0].score - OPTIMAL_MOVE_THRESHOLD)
+    );
+    size_t index = optimalMoves.size();
+
+    for (size_t i = 0; i < optimalMoves.size(); i++) {
+      if (score > optimalMoves[i].score) {
+        index = i;
+
+        break;
+      }
+    }
+
+    optimalMoves.insert({ .move = move, .score = score }, index);
+
+    this->revertMove(&moveInfo);
+  }
+
+  double threshold = this->isMateScore(optimalMoves[0].score)
+    ? 0.5
+    : OPTIMAL_MOVE_THRESHOLD;
+
+  for (int i = optimalMoves.size() - 1; i > 0; i--) {
+    if (optimalMoves[0].score - optimalMoves[i].score >= threshold) {
+      optimalMoves.pop();
+    } else {
+      break;
+    }
+  }
+
+  std::default_random_engine generator(clock());
+  std::uniform_int_distribution<int> distribution(0, optimalMoves.size() - 1);
+  MoveWithScore selectedMove = optimalMoves[distribution(generator)];
+
+  cout << "optimal moves: ";
+
+  for (int i = 0; i < optimalMoves.size(); i++) {
+    MoveWithScore optimalMove = optimalMoves[i];
+
+    cout
+      << utils::formatString(gameUtils::moveToUci(optimalMove.move), {"red", "bold"})
+      << " (" << utils::formatString(this->getScore(optimalMove.score), {"green", "bold"}) << ")";
+
+    if (i != optimalMoves.size() - 1) {
+      cout << ", ";
+    }
+  }
+
+  cout << endl;
+
+  cout
+    << "picket move " << utils::formatString(gameUtils::moveToUci(selectedMove.move), {"red", "bold"})
+    << " (" << utils::formatString(this->getScore(selectedMove.score), {"green", "bold"}) << ")" << endl;
+
+  return selectedMove.move;
+}
+
+string Bot::getScore(Score score) {
+  if (this->isMateScore(score)) {
+    return string("#") + (score < 0 ? "-" : "") + to_string(ceil((MATE_SCORE - abs(score)) / 2.0));
+  }
+
+  string result = to_string(score / 1000.0);
+
+  return result.substr(0, result.length() - 4);
+}
+
+bool Bot::isMateScore(Score score) {
+  return abs(score) > 1000000;
+}
+
+Move Bot::makeMove() {
+  if (this->color != this->turn || this->isDraw() || this->isNoMoves()) {
+    return NO_MOVE;
+  }
+
+  this->nodes = 0;
+  this->cutNodesCount = 0;
+  this->firstCutNodesCount = 0;
+
+  clock_t timestamp = clock();
+  Move move = this->getOptimalMove();
+  double moveTook = (clock() - timestamp) * 1000.0 / CLOCKS_PER_SEC;
+
+  cout << "move took " << utils::formatString(to_string((int)round(moveTook)), {"red", "bold"}) << " ms" << endl;
+  cout << "nodes: " << utils::formatString(to_string(this->nodes), {"blue", "bold"}) << endl;
+  cout << "move ordering quality: " << utils::formatString(
+    this->cutNodesCount == 0
+      ? "NaN"
+      : to_string((int)round((1.0 * this->firstCutNodesCount / this->cutNodesCount) * 100)),
+    {"blue", "bold"}
+  ) << "%" << endl;
+  cout << "performance: " << utils::formatString(
+    moveTook == 0
+      ? "NaN"
+      : to_string((int)round(this->nodes / moveTook)),
+    {"green", "bold"}
+  ) << " kn/s" << endl;
+  cout << string(80, '-') << endl;
+
+  return move;
+}
+
+Score Bot::moveScore(Move move, bool isEndgame) {
+  Square from = gameUtils::getMoveFrom(move);
+  Square to = gameUtils::getMoveTo(move);
+  PieceType promotion = gameUtils::getMovePromotion(move);
+  int score = 0;
+
+  if (promotion != NO_PIECE) {
+    score += 1000 * gameUtils::piecesWorth[promotion];
+  }
+
+  Color opponentColor = ~this->turn;
+  Piece* piece = this->board[from];
+  Piece* toPiece = this->board[to];
+
+  if (toPiece != this->noPiece) {
+    score += 1000 * gameUtils::piecesWorth[toPiece->type];
+  }
+
+  if (piece->type < PAWN && piece->type > KING) {
+    score += (
+      (this->isControlledByOpponentPawn(from, opponentColor) ? 1000 : 0)
+      + (this->isControlledByOpponentPawn(to, opponentColor) ? -2000 : 0)
+    );
+  }
+
+  if (piece->type == PAWN) {
+    vector<Square>* targets = gameUtils::pawnAttacks[this->turn][to];
+    Piece* leftTarget = targets->size() > 0 ? this->board[targets->at(0)] : this->noPiece;
+    Piece* rightTarget = targets->size() > 1 ? this->board[targets->at(1)] : this->noPiece;
+
+    if (leftTarget->color == opponentColor && leftTarget->type < PAWN) {
+      score += leftTarget->type == KING
+        ? 100
+        : gameUtils::piecesWorth[leftTarget->type] * 100;
+    }
+
+    if (rightTarget->color == opponentColor && rightTarget->type < PAWN) {
+      score += rightTarget->type == KING
+        ? 100
+        : gameUtils::piecesWorth[rightTarget->type] * 100;
+    }
+  } else if (piece->type == KNIGHT) {
+    for (auto &square : *gameUtils::knightAttacks[to]) {
+      Piece* pieceInSquare = this->board[square];
+
+      if (pieceInSquare->color == opponentColor && pieceInSquare->type < BISHOP) {
+        score += pieceInSquare->type == KING
+          ? 100
+          : gameUtils::piecesWorth[pieceInSquare->type] * 50;
+      }
+    }
+  }
+
+  score += 10 * (
+    gameUtils::allPieceSquareTables[piece->color][piece->type][isEndgame][to]
+    - gameUtils::allPieceSquareTables[piece->color][piece->type][isEndgame][from]
+  );
+
+  return Score(score);
 }

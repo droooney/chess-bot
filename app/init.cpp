@@ -47,6 +47,10 @@ void init::init() {
       gameUtils::areAligned[square1][square2] = (
         gameUtils::areAlignedDiagonally[square1][square2] || gameUtils::areAlignedOrthogonally[square1][square2]
       );
+      gameUtils::distances[square1][square2] = (
+        abs(gameUtils::rankOf(square1) - gameUtils::rankOf(square2))
+        + abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
+      );
 
       for (PieceType pieceType = KING; pieceType < NO_PIECE; ++pieceType) {
         gameUtils::arePieceAligned[pieceType][square1][square2] = (
@@ -168,8 +172,8 @@ void init::init() {
       }
     }
 
-    File file = gameUtils::files[square1] = gameUtils::fileOf(square1);
-    Rank rank = gameUtils::ranks[square1] = gameUtils::rankOf(square1);
+    File file = gameUtils::squareFiles[square1] = gameUtils::fileOf(square1);
+    Rank rank = gameUtils::squareRanks[square1] = gameUtils::rankOf(square1);
     gameUtils::squares[rank][file] = square1;
     gameUtils::enPassantPieceSquares[square1] = gameUtils::square(rank == RANK_3 ? RANK_4 : rank == RANK_6 ? RANK_5 : rank,file);
     gameUtils::squareColors[square1] = (rank + file) % 2;

@@ -1,6 +1,8 @@
 #include <string>
 #include <vector>
 
+#include "utils.h"
+
 #ifndef GAME_UTILS_INCLUDED
 #define GAME_UTILS_INCLUDED
 
@@ -29,16 +31,16 @@ enum Castling {
   NO_CASTLING,
 
   WHITE_OO,
-  WHITE_OOO = WHITE_OO << 1,
-  BLACK_OO  = WHITE_OO << 2,
-  BLACK_OOO = WHITE_OO << 3,
+  WHITE_OOO      = WHITE_OO << 1,
+  BLACK_OO       = WHITE_OO << 2,
+  BLACK_OOO      = WHITE_OO << 3,
 
-  ANY_OO = WHITE_OO | BLACK_OO,
-  ANY_OOO = WHITE_OOO | BLACK_OOO,
+  ANY_OO         = WHITE_OO  | BLACK_OO,
+  ANY_OOO        = WHITE_OOO | BLACK_OOO,
   WHITE_CASTLING = WHITE_OO  | WHITE_OOO,
   BLACK_CASTLING = BLACK_OO  | BLACK_OOO,
 
-  ANY_CASTLING = WHITE_CASTLING | BLACK_CASTLING
+  ANY_CASTLING   = WHITE_CASTLING | BLACK_CASTLING
 };
 
 constexpr Castling operator~(Castling castling) {
@@ -54,7 +56,7 @@ constexpr Castling operator&(Castling castling, Color color) {
 }
 
 constexpr Castling operator&=(Castling &castling1, Castling castling2) {
-  return castling1 = castling1 & castling2;
+  return castling1 = Castling((int)castling1 & (int)castling2);
 }
 
 constexpr Castling operator|(Castling castling1, Castling castling2) {
@@ -62,7 +64,7 @@ constexpr Castling operator|(Castling castling1, Castling castling2) {
 }
 
 constexpr Castling operator|=(Castling &castling1, Castling castling2) {
-  return castling1 = castling1 | castling2;
+  return castling1 = Castling((int)castling1 | (int)castling2);
 }
 
 enum PieceType {
@@ -110,7 +112,7 @@ constexpr File operator+(File file, int inc) {
 }
 
 constexpr File operator-(File file, int inc) {
-  return file + -inc;
+  return File((int)file - inc);
 }
 
 enum Rank : int {
@@ -139,7 +141,7 @@ constexpr Rank operator+(Rank rank, int inc) {
 }
 
 constexpr Rank operator-(Rank rank, int inc) {
-  return rank + -inc;
+  return Rank((int)rank - inc);
 }
 
 enum Direction : int {
@@ -188,7 +190,7 @@ constexpr Square operator+(Square square, Direction direction) {
 }
 
 constexpr Square operator+=(Square &square, Direction direction) {
-  return square = square + direction;
+  return square = Square((int)square + (int)direction);
 }
 
 constexpr Square operator-(Square square, Direction direction) {
@@ -196,7 +198,7 @@ constexpr Square operator-(Square square, Direction direction) {
 }
 
 constexpr Square operator-=(Square &square, Direction direction) {
-  return square = square - direction;
+  return square = Square((int)square - (int)direction);
 }
 
 struct Piece {
@@ -209,7 +211,7 @@ struct Piece {
 typedef uint64_t ZobristKey;
 
 enum Move : int {
-
+  NO_MOVE = 0
 };
 
 constexpr Move operator|(Move move, PieceType promotion) {
@@ -237,6 +239,66 @@ struct MoveInfo {
 
 typedef int PieceSquareTable[64];
 
+enum Score : int {
+  SCORE_EQUAL    = 0,
+  MATE_SCORE     = 10000000,
+  NO_SCORE       = 100000000,
+  INFINITE_SCORE = 1000000000
+};
+
+constexpr Score operator-(Score score) {
+  return Score(-(int)score);
+}
+
+constexpr Score operator+(Score score, int increment) {
+  return Score((int)score + increment);
+}
+
+constexpr Score operator+=(Score &score, int increment) {
+  return score = Score((int)score + increment);
+}
+
+constexpr Score operator+(Score score1, Score score2) {
+  return Score((int)score1 + (int)score2);
+}
+
+constexpr Score operator+=(Score &score1, Score score2) {
+  return score1 = Score((int)score1 + (int)score2);
+}
+
+constexpr Score operator-(Score score, int increment) {
+  return Score((int)score - increment);
+}
+
+constexpr Score operator-=(Score &score, int increment) {
+  return score = Score((int)score - increment);
+}
+
+constexpr Score operator-(Score score1, Score score2) {
+  return Score((int)score1 - (int)score2);
+}
+
+constexpr Score operator-=(Score &score1, Score score2) {
+  return score1 = Score((int)score1 - (int)score2);
+}
+
+struct MoveWithScore {
+  Move  move = NO_MOVE;
+  Score score = NO_SCORE;
+};
+
+struct FileInfo {
+  Rank min = NO_RANK;
+  Rank max = NO_RANK;
+};
+
+struct PositionInfo {
+  List<Square, 32>    attacks[2][64];
+  FileInfo            pawnFiles[2][8];
+  List<Piece*, 64>    pawns[2];
+  List<PieceType, 32> squareAttacks[2][64];
+};
+
 namespace gameUtils {
   extern PieceSquareTable         allPieceSquareTables[2][6][2];
   extern bool                     areAlignedDiagonally[64][64];
@@ -251,9 +313,9 @@ namespace gameUtils {
     {+1, -1},
     {-1, -1}
   };
+  extern int                      distances[64][64];
   extern PieceSquareTable         egWhiteKingPieceSquareTable;
   extern Square                   enPassantPieceSquares[64];
-  extern File                     files[64];
   extern bool                     isSquareBetween[64][64][64];
   extern vector<Square>*          kingAttacks[64];
   const int                       kingIncrements[8][2] = {
@@ -277,6 +339,7 @@ namespace gameUtils {
     {+2, -1},
     {-2, -1}
   };
+  extern PieceSquareTable         mgWhitePieceSquareTables[6];
   extern vector<Square>*          middleSquares[64][64];
   const int                       orthogonalIncrements[4][2] = {
     {+1, +0},
@@ -285,18 +348,17 @@ namespace gameUtils {
     {+0, -1}
   };
   extern vector<Square>*          pawnAttacks[2][64];
-  extern Rank                     ranks[64];
-  extern int                      squareColors[64];
-  extern PieceSquareTable         mgWhitePieceSquareTables[6];
   const string                    pieces = "kqrbnp";
   const int                       piecesWorth[6] = {1000, 16, 8, 5, 5, 1};
   extern vector<vector<Square>*>* slidingAttacks[6][64];
+  extern int                      squareColors[64];
+  extern File                     squareFiles[64];
+  extern Rank                     squareRanks[64];
   extern Square                   squares[8][8];
 
   inline File      fileOf(Square square) {
     return File(square & 7);
   };
-  int              getDistance(Square square1, Square square2);
   inline Square    getMoveFrom(Move move) {
     return Square(move >> 9);
   };

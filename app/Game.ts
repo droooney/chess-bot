@@ -438,9 +438,8 @@ export default class Game extends Utils {
     return null;
   }
 
-  isControlledByOpponentPawn(square: number, color: Color): boolean {
-    const opponentColor = Game.oppositeColor[color];
-    const attackingPawnSquares = Game.pawnAttacks[color][square];
+  isControlledByOpponentPawn(square: number, opponentColor: Color): boolean {
+    const attackingPawnSquares = Game.pawnAttacks[Game.oppositeColor[opponentColor]][square];
     const leftPawn = this.board[attackingPawnSquares[0]];
     const rightPawn = this.board[attackingPawnSquares[1]];
 
@@ -558,14 +557,8 @@ export default class Game extends Utils {
       return true;
     }
 
-    const pawnAttacks = Game.pawnAttacks[this.turn][square];
-
-    for (let i = 0; i < pawnAttacks.length; i++) {
-      const pieceInSquare = this.board[pawnAttacks[i]];
-
-      if (pieceInSquare && pieceInSquare.color === opponentColor && pieceInSquare.type === PieceType.PAWN) {
-        return true;
-      }
+    if (this.isControlledByOpponentPawn(square, opponentColor)) {
+      return true;
     }
 
     const knightAttacks = Game.knightMoves[square];

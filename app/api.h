@@ -7,7 +7,7 @@
 using namespace std;
 
 namespace api {
-  void parseFen(const string &fen, const string &position);
+  void parseFen(const string &fen);
 
   void parseFenWrapped(const Napi::CallbackInfo &info);
 }

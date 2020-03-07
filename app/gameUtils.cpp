@@ -13,6 +13,7 @@ bool gameUtils::areAligned[64][64];
 bool gameUtils::areOnOneLine[64][64][64];
 bool gameUtils::arePieceAligned[6][64][64];
 vector<Square>* gameUtils::behindSquares[64][64];
+int gameUtils::distances[64][64];
 PieceSquareTable gameUtils::egWhiteKingPieceSquareTable = {
   -50,-40,-30,-20,-20,-30,-40,-50,
   -30,-20,-10,  0,  0,-10,-20,-30,
@@ -24,7 +25,6 @@ PieceSquareTable gameUtils::egWhiteKingPieceSquareTable = {
   -50,-30,-30,-30,-30,-30,-30,-50
 };
 Square gameUtils::enPassantPieceSquares[64];
-File gameUtils::files[64];
 bool gameUtils::isSquareBetween[64][64][64];
 vector<Square>* gameUtils::kingAttacks[64];
 vector<Square>* gameUtils::knightAttacks[64];
@@ -103,17 +103,11 @@ PieceSquareTable gameUtils::mgWhitePieceSquareTables[6] = {
   }
 };
 vector<Square>* gameUtils::pawnAttacks[2][64];
-Rank gameUtils::ranks[64];
 int gameUtils::squareColors[64];
+File gameUtils::squareFiles[64];
+Rank gameUtils::squareRanks[64];
 vector<vector<Square>*>* gameUtils::slidingAttacks[6][64];
 Square gameUtils::squares[8][8];
-
-int gameUtils::getDistance(Square square1, Square square2) {
-  return (
-    abs(gameUtils::rankOf(square1) - gameUtils::rankOf(square2))
-    + abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
-  );
-}
 
 Square gameUtils::literalToSquare(const string &square) {
   return gameUtils::square(Rank(square[1] - '1'), File(square[0] - 'a'));
@@ -137,8 +131,8 @@ string gameUtils::squareToLiteral(Square square) {
 vector<Square> gameUtils::traverseDirection(Square square, int incrementRank, int incrementFile, bool stopAfter1) {
   vector<Square> squares;
 
-  File nextFile = fileOf(square) + incrementFile;
-  Rank nextRank = rankOf(square) + incrementRank;
+  File nextFile = gameUtils::fileOf(square) + incrementFile;
+  Rank nextRank = gameUtils::rankOf(square) + incrementRank;
 
   if (nextFile < FILE_A || nextFile > FILE_H || nextRank < RANK_1 || nextRank > RANK_8) {
     return squares;

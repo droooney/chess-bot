@@ -1,5 +1,4 @@
 #include <string>
-#include <unordered_map>
 #include <unordered_set>
 
 #include "gameUtils.h"
@@ -12,9 +11,10 @@ using namespace std;
 
 class Game {
 public:
-  Game(const string &fen, const string &moves);
+  explicit Game(const string &fen);
   ~Game();
-  Move*    getAllLegalMoves(Move* moveList);
+  void     applyMoves(const string &moves);
+  Move*    getAllLegalMoves(Move* moves);
   MoveInfo performMove(Move move);
   void     revertMove(MoveInfo* move);
 
@@ -30,13 +30,8 @@ protected:
   unordered_set<ZobristKey> keys;
   Piece*                    kings[2];
   int                       material[2];
-  string                    moves;
-  Piece*                    noPiece = new Piece({
-                              .index  = -1,
-                              .type   = NO_PIECE,
-                              .color  = NO_COLOR,
-                              .square = NO_SQUARE
-                            });
+  int                       moveCount = 0;
+  Piece*                    noPiece = nullptr;
   int                       pawnCount = 0;
   ZobristKey                pawnKey = 0ULL;
   Piece*                    pieces[2][64];
@@ -44,28 +39,29 @@ protected:
   ZobristKey                pieceKeys[2][6][64];
   int                       pliesFor50MoveRule = 0;
   ZobristKey                positionKey = 0ULL;
-  List<ZobristKey, 256>     positions = List<ZobristKey, 256>();
+  List<ZobristKey, 512>     positions;
   Castling                  possibleCastling = NO_CASTLING;
   Square                    possibleEnPassant = NO_SQUARE;
   Color                     turn = WHITE;
   ZobristKey                turnKey;
 
-  ZobristKey     generateKey();
-  vector<Square> getAttacks(Piece* piece);
-  Piece*         getCheckingPiece();
-  Square*        getLegalMoves(Square* squareList, Piece* piece, bool stopAfter1);
-  Square*        getPseudoLegalMoves(Square* squareList, Piece* piece);
-  Piece*         getSliderBehind(Square square1, Square square2, Color color);
-  bool           isDirectionBlocked(Square square1, Square square2);
-  bool           isDraw();
-  bool           isEndgame();
-  bool           isInCheck();
-  bool           isInDoubleCheck();
-  bool           isInsufficientMaterial();
-  bool           isNoMoves();
-  bool           isSquareAttacked(Square square);
-  void           printBoard();
-  void           setStartingData();
+  ZobristKey generateKey();
+  Square*    getAttacks(Square* attacks, Piece* piece);
+  Piece*     getCheckingPiece();
+  Square*    getLegalMoves(Square* moves, Piece* piece, bool stopAfter1);
+  Square*    getPseudoLegalMoves(Square* moves, Piece* piece);
+  Piece*     getSliderBehind(Square square1, Square square2, Color color);
+  bool       isControlledByOpponentPawn(Square square, Color opponentColor);
+  bool       isDirectionBlocked(Square square1, Square square2);
+  bool       isDraw();
+  bool       isEndgame();
+  bool       isInCheck();
+  bool       isInDoubleCheck();
+  bool       isInsufficientMaterial();
+  bool       isNoMoves();
+  bool       isSquareAttacked(Square square);
+  void       printBoard();
+  void       setStartingData();
 };
 
 #endif // GAME_INCLUDED

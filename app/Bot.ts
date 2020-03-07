@@ -36,54 +36,27 @@ export default class Bot extends Game {
   }
 
   color: Color;
-  debug: boolean;
   moveCount: number = 0;
   evaluatedPositions: Map<bigint, number> = new Map();
   evaluatedPawnPositions: Record<Color, Map<bigint, number>> = [new Map(), new Map()];
   nodes: number = 0;
   cutNodesCount: number = 0;
   firstCutNodesCount: number = 0;
-  evalTime: number = 0;
-  evalKingSafetyTime: number = 0;
-  evalPawnsTime: number = 0;
-  evalPiecesTime: number = 0;
-  calculatePositionInfoTime: number = 0;
-  calculateLegalMovesTime: number = 0;
-  calculateMateTime: number = 0;
-  calculateDrawTime: number = 0;
-  performMoveTime: number = 0;
-  revertMoveTime: number = 0;
-  moveSortTime: number = 0;
 
-  constructor(fen: string, color: Color, debug: boolean) {
+  constructor(fen: string, color: Color) {
     super(fen);
 
     this.color = color;
-    this.debug = debug;
   }
 
   eval(depth: number): number {
-    const timestamp = this.getTimestamp();
-
     if (this.isCheck && this.isNoMoves()) {
-      this.calculateMateTime += this.getTimestamp() - timestamp;
-
       return Bot.getMateScore(depth);
     }
 
-    const timestamp2 = this.getTimestamp();
-
-    this.calculateMateTime += timestamp2 - timestamp;
-
     if (this.isDraw || (!this.isCheck && this.isNoMoves())) {
-      this.calculateDrawTime += this.getTimestamp() - timestamp2;
-
       return 0;
     }
-
-    const timestamp3 = this.getTimestamp();
-
-    this.calculateDrawTime += timestamp3 - timestamp2;
 
     const currentPawnScore = this.evaluatedPawnPositions[this.turn].get(this.pawnKey);
     const noPawnScore = currentPawnScore === undefined;
@@ -134,7 +107,6 @@ export default class Bot extends Game {
       }
     }
 
-    const timestamp4 = this.getTimestamp();
     const pawnsScore = noPawnScore
       ? this.evalPawns(this.turn, positionInfo) - this.evalPawns(Bot.oppositeColor[this.turn], positionInfo)
       : currentPawnScore!;
@@ -143,28 +115,11 @@ export default class Bot extends Game {
       this.evaluatedPawnPositions[this.turn].set(this.pawnKey, pawnsScore);
     }
 
-    if (this.debug) {
-      this.calculatePositionInfoTime += timestamp4 - timestamp3;
-      this.evalPawnsTime += this.getTimestamp() - timestamp4;
-    }
-
     return pawnsScore + this.evalColor(this.turn, positionInfo) - this.evalColor(Bot.oppositeColor[this.turn], positionInfo);
   }
 
   evalColor(color: Color, positionInfo: PositionInfo): number {
-    const timestamp = this.getTimestamp();
-
-    const kingSafetyScore = this.evalKingSafety(color);
-    const timestamp2 = this.getTimestamp();
-
-    const piecesScore = this.evalPieces(color, positionInfo);
-
-    if (this.debug) {
-      this.evalKingSafetyTime += timestamp2 - timestamp;
-      this.evalPiecesTime += this.getTimestamp() - timestamp2;
-    }
-
-    return kingSafetyScore + piecesScore;
+    return this.evalKingSafety(color) + this.evalPieces(color, positionInfo);
   }
 
   evalKingSafety(color: Color): number {
@@ -457,7 +412,6 @@ export default class Bot extends Game {
     }
 
     if (depth === Bot.SEARCH_DEPTH) {
-      const timestamp = Date.now();
       const currentScore = this.evaluatedPositions.get(this.positionKey);
       const score = currentScore === undefined ? this.eval(depth) : currentScore;
 
@@ -466,14 +420,11 @@ export default class Bot extends Game {
       }
 
       this.nodes++;
-      this.evalTime += Date.now() - timestamp;
 
       return score;
     }
 
-    const timestamp = this.getTimestamp();
     const legalMoves = this.getAllLegalMoves();
-    const timestamp2 = this.getTimestamp();
 
     if (!legalMoves.length) {
       return this.isCheck ? Bot.getMateScore(depth) : 0;
@@ -481,29 +432,12 @@ export default class Bot extends Game {
 
     const sortedMoves = _.sortBy(legalMoves, this.moveScore);
 
-    const timestamp3 = this.getTimestamp();
-
-    if (this.debug) {
-      this.calculateLegalMovesTime += timestamp2 - timestamp;
-      this.moveSortTime += timestamp3 - timestamp2;
-    }
-
     for (let i = 0; i < sortedMoves.length; i++) {
       const move = sortedMoves[i];
-
-      const timestamp = this.getTimestamp();
       const moveObject = this.performMove(move);
-      const timestamp2 = this.getTimestamp();
-
       const score = -this.executeNegamax(depth + 1, -beta, -alpha);
-      const timestamp3 = this.getTimestamp();
 
       this.revertMove(moveObject);
-
-      if (this.debug) {
-        this.performMoveTime += timestamp2 - timestamp;
-        this.revertMoveTime += this.getTimestamp() - timestamp3;
-      }
 
       if (score >= beta) {
         if (i === 0) {
@@ -533,10 +467,6 @@ export default class Bot extends Game {
     }
 
     const optimalMoves: MoveScore[] = [];
-
-    this.evaluatedPositions.clear();
-    this.evaluatedPawnPositions[Color.WHITE].clear();
-    this.evaluatedPawnPositions[Color.BLACK].clear();
 
     legalMoves
       .map((move) => {
@@ -583,10 +513,6 @@ export default class Bot extends Game {
     return selectedMove.move;
   }
 
-  getTimestamp(): number {
-    return this.debug ? Date.now() : 0;
-  }
-
   makeMove(): number | undefined {
     if (this.turn !== this.color) {
       return;
@@ -595,39 +521,16 @@ export default class Bot extends Game {
     this.nodes = 0;
     this.cutNodesCount = 0;
     this.firstCutNodesCount = 0;
-    this.evalTime = 0;
-    this.evalKingSafetyTime = 0;
-    this.evalPawnsTime = 0;
-    this.evalPiecesTime = 0;
-    this.calculatePositionInfoTime = 0;
-    this.calculateLegalMovesTime = 0;
-    this.calculateMateTime = 0;
-    this.calculateDrawTime = 0;
-    this.performMoveTime = 0;
-    this.revertMoveTime = 0;
-    this.moveSortTime = 0;
+
+    this.evaluatedPositions.clear();
+    this.evaluatedPawnPositions[Color.WHITE].clear();
+    this.evaluatedPawnPositions[Color.BLACK].clear();
 
     const timestamp = Date.now();
     const move = this.getOptimalMove();
     const moveTook = Date.now() - timestamp;
 
     console.log(`move took ${`${moveTook}`.red.bold} ms`);
-    console.log(`eval took ${`${this.evalTime}`.red.bold} ms`);
-    console.log(`rest took ${`${moveTook - this.evalTime}`.red.bold} ms`);
-
-    if (this.debug) {
-      console.log(`evalKingSafety took ${this.evalKingSafetyTime} ms`);
-      console.log(`evalPawns took ${this.evalPawnsTime} ms`);
-      console.log(`evalPieces took ${this.evalPiecesTime} ms`);
-      console.log(`calculatePositionInfo took ${this.calculatePositionInfoTime} ms`);
-      console.log(`calculateLegalMoves took ${this.calculateLegalMovesTime} ms`);
-      console.log(`calculateMate took ${this.calculateMateTime} ms`);
-      console.log(`calculateDraw took ${this.calculateDrawTime} ms`);
-      console.log(`performMove took ${this.performMoveTime} ms`);
-      console.log(`revertMove took ${this.revertMoveTime} ms`);
-      console.log(`moveSort took ${this.moveSortTime} ms`);
-    }
-
     console.log(`nodes: ${`${this.nodes}`.blue.bold}`);
     console.log(`move ordering quality: ${`${Math.round((this.firstCutNodesCount / this.cutNodesCount) * 100)}%`.green.bold}`);
     console.log(`performance: ${`${Math.round(this.nodes / moveTook)}`.green.bold} kn/s`);
@@ -664,8 +567,8 @@ export default class Bot extends Game {
     }
 
     if (piece.type < PieceType.PAWN && piece.type > PieceType.KING) {
-      const isFromControlledByPawn = this.isControlledByOpponentPawn(from, this.turn);
-      const isToControlledByPawn = this.isControlledByOpponentPawn(to, this.turn);
+      const isFromControlledByPawn = this.isControlledByOpponentPawn(from, opponentColor);
+      const isToControlledByPawn = this.isControlledByOpponentPawn(to, opponentColor);
 
       score += (isFromControlledByPawn ? 1000 : 0) + (isToControlledByPawn ? -2000 : 0);
     }
@@ -701,7 +604,10 @@ export default class Bot extends Game {
       }
     }
 
-    score += 10 * (Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][to] - Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][from]);
+    score += 10 * (
+      Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][to]
+      - Bot.pieceSquareTables[piece.color][piece.type][+isEndgame][from]
+    );
 
     return -score;
   };

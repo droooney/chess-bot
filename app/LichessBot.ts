@@ -132,8 +132,7 @@ export default class LichessBot {
       if (event.type === 'gameFull') {
         const bot = this.bots[gameId] = new Bot(
           event.initialFen === 'startpos' ? Bot.standardFen : event.initialFen,
-          event.white.id === this.name ? Color.WHITE : Color.BLACK,
-          !this.isProduction
+          event.white.id === this.name ? Color.WHITE : Color.BLACK
         );
 
         this.handleGameState(gameId, bot, event.state);

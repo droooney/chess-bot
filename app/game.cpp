@@ -2,7 +2,6 @@
 #include <iostream>
 #include <random>
 #include <string>
-#include <unordered_set>
 #include <vector>
 
 #include "game.h"
@@ -11,10 +10,16 @@
 
 using namespace std;
 
-Game::Game(const string &fen, const string &moves) {
+Game::Game(const string &fen) {
+  this->noPiece = new Piece({
+    .index  = -1,
+    .type   = NO_PIECE,
+    .color  = NO_COLOR,
+    .square = NO_SQUARE
+  });
+
   this->checkingPiece = this->noPiece;
   this->fen = fen;
-  this->moves = moves;
   this->turnKey = this->generateKey();
 
   for (auto &piece : this->board) {
@@ -54,6 +59,17 @@ Game::~Game() {
   }
 }
 
+void Game::applyMoves(const string &moves) {
+  vector<string> split = utils::split(moves, " ");
+  vector<string> newMoves;
+
+  newMoves.insert(newMoves.end(), split.begin() + this->moveCount, split.end());
+
+  for (auto &moveString : utils::split(moves, " ")) {
+    this->performMove(gameUtils::uciToMove(moveString));
+  }
+}
+
 ZobristKey Game::generateKey() {
   ZobristKey key = 0ULL;
 
@@ -75,8 +91,8 @@ Move* Game::getAllLegalMoves(Move* moves) {
 
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = this->pieces[this->turn][i];
-    bool isPawnPromotion = piece->type == PAWN && gameUtils::ranks[piece->square] == gameUtils::rank7(piece->color);
-    List<Square, 32> squareList = List<Square, 32>();
+    bool isPawnPromotion = piece->type == PAWN && gameUtils::squareRanks[piece->square] == gameUtils::rank7(piece->color);
+    List<Square, 32> squareList;
 
     squareList.last = this->getLegalMoves(squareList.list, piece, false);
 
@@ -97,32 +113,32 @@ Move* Game::getAllLegalMoves(Move* moves) {
   return moves;
 }
 
-vector<Square> Game::getAttacks(Piece* piece) {
+Square* Game::getAttacks(Square* attacks, Piece* piece) {
   if (piece->type == KNIGHT) {
-    return *gameUtils::knightAttacks[piece->square];
-  }
+    for (auto &square : *gameUtils::knightAttacks[piece->square]) {
+      *attacks++ = square;
+    }
+  } else if (piece->type == KING) {
+    for (auto &square : *gameUtils::kingAttacks[piece->square]) {
+      *attacks++ = square;
+    }
+  } else if (piece->type == PAWN) {
+    for (auto &square : *gameUtils::pawnAttacks[piece->color][piece->square]) {
+      *attacks++ = square;
+    }
+  } else {
+    for (auto &directionAttacks : *gameUtils::slidingAttacks[piece->type][piece->square]) {
+      for (auto &square : *directionAttacks) {
+        *attacks++ = square;
 
-  if (piece->type == KING) {
-    return *gameUtils::kingAttacks[piece->square];
-  }
-
-  if (piece->type == PAWN) {
-    return *gameUtils::pawnAttacks[piece->color][piece->square];
-  }
-
-  vector<Square> slidingAttacks;
-
-  for (auto &directionAttacks : *gameUtils::slidingAttacks[piece->type][piece->square]) {
-    for (auto &square : *directionAttacks) {
-      slidingAttacks.push_back(square);
-
-      if (this->board[square] != this->noPiece) {
-        break;
+        if (this->board[square] != this->noPiece) {
+          break;
+        }
       }
     }
   }
 
-  return slidingAttacks;
+  return attacks;
 }
 
 Piece* Game::getCheckingPiece() {
@@ -131,9 +147,11 @@ Piece* Game::getCheckingPiece() {
 
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = opponentPieces[i];
-    vector<Square> attacks = this->getAttacks(piece);
+    List<Square, 32> attacks;
 
-    if (find(attacks.begin(), attacks.end(), this->kings[this->turn]->square) != attacks.end()) {
+    attacks.last = this->getAttacks(attacks.list, piece);
+
+    if (attacks.contains(this->kings[this->turn]->square)) {
       return piece;
     }
   }
@@ -168,7 +186,7 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     if (isPinned) {
       pinDirection = gameUtils::areAlignedDiagonally[piece->square][kingSquare]
         ? PIN_DIAGONAL
-        : gameUtils::ranks[piece->square] == gameUtils::ranks[kingSquare]
+        : gameUtils::squareRanks[piece->square] == gameUtils::squareRanks[kingSquare]
           ? PIN_HORIZONTAL
           : PIN_VERTICAL;
     }
@@ -219,7 +237,7 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     return moves;
   }
 
-  List<Square, 32> pseudoLegalMoves = List<Square, 32>();
+  List<Square, 32> pseudoLegalMoves;
 
   pseudoLegalMoves.last = this->getPseudoLegalMoves(pseudoLegalMoves.list, piece);
 
@@ -396,7 +414,7 @@ Square* Game::getPseudoLegalMoves(Square* moves, Piece *piece) {
       *moves++ = squareInFront;
 
       // double advance move
-      if (gameUtils::ranks[piece->square] == gameUtils::rank2(piece->color)) {
+      if (gameUtils::squareRanks[piece->square] == gameUtils::rank2(piece->color)) {
         squareInFront += direction;
 
         if (this->board[squareInFront] == this->noPiece) {
@@ -447,6 +465,21 @@ Piece* Game::getSliderBehind(Square square1, Square square2, Color color) {
   return this->noPiece;
 }
 
+bool Game::isControlledByOpponentPawn(Square square, Color opponentColor) {
+  for (auto &attackedSquare : *gameUtils::pawnAttacks[~opponentColor][square]) {
+    Piece* pieceInSquare = this->board[attackedSquare];
+
+    if (
+      pieceInSquare->color == opponentColor
+      && pieceInSquare->type == PAWN
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool Game::isDirectionBlocked(Square square1, Square square2) {
   for (auto &middleSquare : *gameUtils::middleSquares[square1][square2]) {
     if (this->board[middleSquare] != this->noPiece) {
@@ -482,9 +515,11 @@ bool Game::isInDoubleCheck() {
   int checkingPiecesCount = 0;
 
   for (int i = 0; i < pieceCount; i++) {
-    vector<Square> attacks = this->getAttacks(opponentPieces[i]);
+    List<Square, 32> attacks;
 
-    if (find(attacks.begin(), attacks.end(), this->kings[this->turn]->square) != attacks.end()) {
+    attacks.last = this->getAttacks(attacks.list, opponentPieces[i]);
+
+    if (attacks.contains(this->kings[this->turn]->square)) {
       checkingPiecesCount++;
     }
   }
@@ -543,11 +578,11 @@ bool Game::isNoMoves() {
   Piece** pieces = this->pieces[this->turn];
 
   for (int i = 0; i < this->pieceCounts[this->turn]; i++) {
-    List<Square, 32> squareList = List<Square, 32>();
+    List<Square, 32> squareList;
 
     squareList.last = this->getLegalMoves(squareList.list, pieces[i], true);
 
-    if (squareList.size() != 0) {
+    if (!squareList.empty()) {
       return false;
     }
   }
@@ -559,15 +594,8 @@ bool Game::isSquareAttacked(Square square) {
   Color opponentColor = ~this->turn;
   Piece* pieceInSquare;
 
-  for (auto &attackedSquare : *gameUtils::pawnAttacks[this->turn][square]) {
-    pieceInSquare = this->board[attackedSquare];
-
-    if (
-      pieceInSquare->color == opponentColor
-      && pieceInSquare->type == PAWN
-    ) {
-      return true;
-    }
+  if (this->isControlledByOpponentPawn(square, opponentColor)) {
+    return true;
   }
 
   for (auto &attackedSquare : *gameUtils::knightAttacks[square]) {
@@ -680,7 +708,7 @@ MoveInfo Game::performMove(Move move) {
     }
   }
 
-  if (pieceType == KING && abs(gameUtils::files[to] - gameUtils::files[from]) > 1) {
+  if (pieceType == KING && abs(gameUtils::squareFiles[to] - gameUtils::squareFiles[from]) > 1) {
     Square rookSquare = NO_SQUARE;
     Square newRookSquare = NO_SQUARE;
 
@@ -756,8 +784,8 @@ MoveInfo Game::performMove(Move move) {
     this->pawnCount--;
   }
 
-  if (pieceType == PAWN && abs(gameUtils::ranks[to] - gameUtils::ranks[from]) > 1) {
-    File pawnFile = gameUtils::files[to];
+  if (pieceType == PAWN && abs(gameUtils::squareRanks[to] - gameUtils::squareRanks[from]) > 1) {
+    File pawnFile = gameUtils::squareFiles[to];
     Piece* leftPiece = pawnFile == FILE_A ? this->noPiece : this->board[to - 1];
     Piece* rightPiece = pawnFile == FILE_H ? this->noPiece : this->board[to + 1];
 
@@ -844,12 +872,13 @@ MoveInfo Game::performMove(Move move) {
     }
   }
 
+  this->moveCount++;
   this->turn = opponentColor;
   this->isCheck = isCheck;
   this->isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
   this->checkingPiece = checkingPiece;
 
-  *this->positions.last++ = this->positionKey;
+  this->positions.push(this->positionKey);
 
   return moveInfo;
 }
@@ -889,7 +918,7 @@ void Game::revertMove(MoveInfo* move) {
     opponentPieces[capturedPiece->index]->index = this->pieceCounts[capturedPiece->color]++;
     opponentPieces[capturedPiece->index] = capturedPiece;
 
-    this->material[capturedPiece->type] += gameUtils::piecesWorth[capturedPiece->type];
+    this->material[capturedPiece->color] += gameUtils::piecesWorth[capturedPiece->type];
     this->board[capturedPiece->square] = capturedPiece;
 
     if (capturedPiece->type == BISHOP) {
@@ -908,7 +937,7 @@ void Game::revertMove(MoveInfo* move) {
   if (castlingRook != this->noPiece) {
     Square oldSquare = gameUtils::squares
       [gameUtils::rank1(castlingRook->color)]
-      [gameUtils::files[castlingRook->square] == FILE_F ? FILE_H : FILE_A];
+      [gameUtils::squareFiles[castlingRook->square] == FILE_F ? FILE_H : FILE_A];
 
     this->board[castlingRook->square] = this->noPiece;
     this->board[oldSquare] = castlingRook;
@@ -919,7 +948,7 @@ void Game::revertMove(MoveInfo* move) {
   this->isDoubleCheck = move->wasDoubleCheck;
   this->checkingPiece = move->prevCheckingPiece;
 
-  this->positions.last--;
+  this->positions.pop();
 
   this->positionKey = move->prevPositionKey;
   this->pawnKey = move->prevPawnKey;
@@ -927,6 +956,7 @@ void Game::revertMove(MoveInfo* move) {
   this->possibleCastling = move->prevPossibleCastling;
   this->pliesFor50MoveRule = move->prevPliesFor50MoveRule;
   this->turn = ~this->turn;
+  this->moveCount--;
 }
 
 void Game::setStartingData() {
@@ -939,7 +969,7 @@ void Game::setStartingData() {
 
   auto addPiece = [this](Color color, PieceType pieceType, Rank rank, File file) {
     int index = this->pieceCounts[color]++;
-    auto square = Square(rank << 3 | file);
+    Square square = Square(rank << 3 | file);
     Piece* piece = new Piece({
       .index  = index,
       .type   = pieceType,
@@ -982,7 +1012,7 @@ void Game::setStartingData() {
       } else {
         Color color = p < 'a' ? WHITE : BLACK;
         char lowerCased = p < 'a' ? p + ('a' - 'A') : p;
-        auto pieceType = PieceType(gameUtils::pieces.find(lowerCased));
+        PieceType pieceType = PieceType(gameUtils::pieces.find(lowerCased));
 
         addPiece(color, pieceType, rank, file);
 

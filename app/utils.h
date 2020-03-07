@@ -19,11 +19,40 @@ public:
   bool     contains(T move) const {
     return find(this->begin(), this->end(), move) != end();
   }
+  bool     empty() const {
+    return this->last == this->list;
+  }
   const T* end() const {
     return this->last;
   }
+  void     insert(const T &value, size_t index) {
+    size_t size = this->size();
+
+    this->last++;
+
+    if (size > 0) {
+      for (size_t i = size - 1; i < size && i >= index; i--) {
+        this->list[i + 1] = this->list[i];
+      }
+    }
+
+    this->list[index] = value;
+  }
+  void     pop() {
+    *this->last-- = T();
+  }
+  void     push(const T &value) {
+    *this->last++ = value;
+  }
   size_t   size() const {
     return this->last - this->list;
+  }
+
+  T&       operator[](size_t at) {
+    return this->list[at];
+  }
+  const T& operator[](size_t at) const {
+    return this->list[at];
   }
 };
 
@@ -47,6 +76,7 @@ ostream& operator<<(ostream &out, const vector<T> &v) {
 }
 
 namespace utils {
+  string         formatString(const string &str, vector<string> formats);
   int            sign(int number);
   vector<string> split(const string &str, const string &delimiter);
 }
