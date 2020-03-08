@@ -13,6 +13,8 @@ public:
   T  list[Size];
   T* last = list;
 
+  explicit List() {};
+  explicit List(T* lastPoint) : last(lastPoint) {};
   const T* begin() const {
     return this->list;
   }
@@ -39,11 +41,7 @@ public:
     this->list[index] = value;
   }
   T        pop() {
-    T prev = *--this->last;
-
-    *this->last = T();
-
-    return prev;
+    return *--this->last;
   }
   void     push(const T &value) {
     *this->last++ = value;

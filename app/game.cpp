@@ -92,9 +92,7 @@ Move* Game::getAllLegalMoves(Move* moves) {
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = this->pieces[this->turn][i];
     bool isPawnPromotion = piece->type == PAWN && gameUtils::squareRanks[piece->square] == gameUtils::rank7(piece->color);
-    List<Square, 32> squareList;
-
-    squareList.last = this->getLegalMoves(squareList.list, piece, false);
+    List<Square, 32> squareList(this->getLegalMoves(squareList.list, piece, false));
 
     for (auto &square : squareList) {
       Move move = gameUtils::move(piece->square, square);
@@ -147,9 +145,7 @@ Piece* Game::getCheckingPiece() {
 
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = opponentPieces[i];
-    List<Square, 32> attacks;
-
-    attacks.last = this->getAttacks(attacks.list, piece);
+    List<Square, 32> attacks(this->getAttacks(attacks.list, piece));
 
     if (attacks.contains(this->kings[this->turn]->square)) {
       return piece;
@@ -237,9 +233,7 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     return moves;
   }
 
-  List<Square, 32> pseudoLegalMoves;
-
-  pseudoLegalMoves.last = this->getPseudoLegalMoves(pseudoLegalMoves.list, piece);
+  List<Square, 32> pseudoLegalMoves(this->getPseudoLegalMoves(pseudoLegalMoves.list, piece));
 
   if (!this->isCheck && !isKing && !isPinned && (!isPawn || !isEnPassantPinned)) {
     for (auto &square : pseudoLegalMoves) {
@@ -515,9 +509,7 @@ bool Game::isInDoubleCheck() {
   int checkingPiecesCount = 0;
 
   for (int i = 0; i < pieceCount; i++) {
-    List<Square, 32> attacks;
-
-    attacks.last = this->getAttacks(attacks.list, opponentPieces[i]);
+    List<Square, 32> attacks(this->getAttacks(attacks.list, opponentPieces[i]));
 
     if (attacks.contains(this->kings[this->turn]->square)) {
       checkingPiecesCount++;
@@ -578,9 +570,7 @@ bool Game::isNoMoves() {
   Piece** pieces = this->pieces[this->turn];
 
   for (int i = 0; i < this->pieceCounts[this->turn]; i++) {
-    List<Square, 32> squareList;
-
-    squareList.last = this->getLegalMoves(squareList.list, pieces[i], true);
+    List<Square, 32> squareList(this->getLegalMoves(squareList.list, pieces[i], true));
 
     if (!squareList.empty()) {
       return false;

@@ -392,9 +392,7 @@ Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
     return SCORE_EQUAL;
   }
 
-  List<Move, 256> legalMoves;
-
-  legalMoves.last = this->getAllLegalMoves(legalMoves.list);
+  List<Move, 256> legalMoves(this->getAllLegalMoves(legalMoves.list));
 
   if (legalMoves.empty()) {
     return this->isCheck ? this->getMateScore(depth) : SCORE_EQUAL;
@@ -445,9 +443,7 @@ Score Bot::getMateScore(int depth) {
 }
 
 Move Bot::getOptimalMove() {
-  List<Move, 256> legalMoves;
-
-  legalMoves.last = this->getAllLegalMoves(legalMoves.list);
+  List<Move, 256> legalMoves(this->getAllLegalMoves(legalMoves.list));
 
   if (legalMoves.empty()) {
     return NO_MOVE;
