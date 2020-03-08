@@ -38,8 +38,12 @@ public:
 
     this->list[index] = value;
   }
-  void     pop() {
-    *this->last-- = T();
+  T        pop() {
+    T prev = *--this->last;
+
+    *this->last = T();
+
+    return prev;
   }
   void     push(const T &value) {
     *this->last++ = value;

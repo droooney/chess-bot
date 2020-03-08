@@ -86,7 +86,7 @@ export default class Bot extends Game {
 
             if (currentFileInfo) {
               currentFileInfo.max = Math.max(rank, currentFileInfo.max);
-              currentFileInfo.min = Math.max(rank, currentFileInfo.min);
+              currentFileInfo.min = Math.min(rank, currentFileInfo.min);
             } else {
               positionInfo.pawnFiles[color][file] = { max: rank, min: rank };
             }

@@ -12,8 +12,8 @@ void init::init() {
       for (int isEndgame = 0; isEndgame < 2; isEndgame++) {
         for (Square square = SQ_A1; square < NO_SQUARE; ++square) {
           int assignedSquare = color == WHITE
-            ? square
-            : (7 - gameUtils::rankOf(square)) << 3 | gameUtils::fileOf(square);
+            ? (7 - gameUtils::rankOf(square)) << 3 | gameUtils::fileOf(square)
+            : square;
 
           gameUtils::allPieceSquareTables[color][pieceType][isEndgame][assignedSquare] = pieceType == KING && isEndgame
             ? gameUtils::egWhiteKingPieceSquareTable[square]

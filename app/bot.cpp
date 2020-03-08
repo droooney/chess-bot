@@ -88,17 +88,139 @@ Score Bot::evalColor(Color color, PositionInfo *positionInfo) {
 }
 
 Score Bot::evalKingSafety(Color color) {
-  return SCORE_EQUAL;
+  if (this->isEndgame()) {
+    return SCORE_EQUAL;
+  }
+
+  Piece* king = this->kings[color];
+  File kingFile = gameUtils::squareFiles[king->square];
+  Rank kingRank = gameUtils::squareRanks[king->square];
+  bool isWhite = color == WHITE;
+
+  if (isWhite ? kingRank > gameUtils::rank4(color) : kingRank < gameUtils::rank4(color)) {
+    return Score(-3000);
+  }
+
+  if (kingRank == gameUtils::rank4(color)) {
+    return Score(-2000);
+  }
+
+  if (kingRank == gameUtils::rank3(color)) {
+    return Score(-1000);
+  }
+
+  if (
+    kingRank == gameUtils::rank2(color)
+    && kingFile >= FILE_C
+    && kingFile <= FILE_F
+  ) {
+    return kingFile == FILE_D || kingFile == FILE_E
+      ? Score(-750)
+      : Score(-500);
+  }
+
+  if (kingFile == FILE_D || kingFile == FILE_E) {
+    return Score(-250);
+  }
+
+  if (kingFile == FILE_F) {
+    return Score(-100);
+  }
+
+  Rank upperRank = kingRank + (isWhite ? 1 : -1);
+  List<Piece*, 6> defendingPieces;
+
+  defendingPieces.push(this->board[gameUtils::squares[kingRank][kingFile - 1]]);
+  defendingPieces.push(this->board[gameUtils::squares[kingRank][kingFile + 1]]);
+  defendingPieces.push(this->board[gameUtils::squares[upperRank][kingFile - 1]]);
+  defendingPieces.push(this->board[gameUtils::squares[upperRank][kingFile]]);
+  defendingPieces.push(this->board[gameUtils::squares[upperRank][kingFile + 1]]);
+
+  int score = kingRank == gameUtils::rank1(color) && kingFile == FILE_C ? 0 : 100;
+
+  for (auto &piece : defendingPieces) {
+    if (piece->color == color) {
+      score += (
+        gameUtils::squareRanks[piece->square] == upperRank
+          ? piece->type == PAWN
+            ? 100
+            : 50
+          : piece->type == PAWN
+            ? 50
+            : 25
+      );
+    }
+  }
+
+  return Score(score);
 }
 
 Score Bot::evalPawns(Color color, PositionInfo *positionInfo) {
-  return SCORE_EQUAL;
+  bool isWhite = color == WHITE;
+  List<Piece*, 64>* pawns = &positionInfo->pawns[color];
+  FileInfo* pawnFiles = positionInfo->pawnFiles[color];
+  FileInfo* opponentPawnFiles = positionInfo->pawnFiles[~color];
+  int score = 0;
+  bool islandState = false;
+  int islandsCount = 0;
+
+  for (File file = FILE_A; file < 8; ++file) {
+    FileInfo* fileInfo = &pawnFiles[file];
+
+    if (fileInfo->min == NO_RANK) {
+      islandState = false;
+    } else {
+      if (fileInfo->max != fileInfo->min) {
+        score -= 300;
+      }
+
+      if (!islandState) {
+        islandsCount++;
+      }
+
+      islandState = true;
+    }
+  }
+
+  for (auto &pawn : *pawns) {
+    File file = gameUtils::squareFiles[pawn->square];
+    Rank rank = gameUtils::squareRanks[pawn->square];
+    FileInfo* leftInfo = file == FILE_A ? nullptr : &opponentPawnFiles[file - 1];
+    FileInfo* fileInfo = &opponentPawnFiles[file];
+    FileInfo* rightInfo = file == FILE_H ? nullptr : &opponentPawnFiles[file + 1];
+
+    score += 2 * gameUtils::allPieceSquareTables[color][PAWN][0][pawn->square];
+
+    if (
+      (leftInfo == nullptr || leftInfo->min == NO_RANK || (isWhite ? leftInfo->max <= rank : leftInfo->min >= rank))
+      && (fileInfo->min == NO_RANK || (isWhite ? fileInfo->max <= rank : fileInfo->min >= rank))
+      && (rightInfo == nullptr || rightInfo->min == NO_RANK || (isWhite ? rightInfo->max <= rank : rightInfo->min >= rank))
+    ) {
+      score += 500 + (
+        rank == gameUtils::rank7(color)
+          ? 1000
+          : rank == gameUtils::rank6(color)
+            ? 500
+            : rank == gameUtils::rank5(color)
+              ? 200
+              : 0
+      );
+    }
+  }
+
+  return Score(score + (islandsCount - 1) * -200);
 }
 
 Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
   bool isEndgame = this->isEndgame();
   Piece** pieces = this->pieces[color];
   int pieceCount = this->pieceCounts[color];
+  Color opponentColor = ~color;
+  bool isWhite = color == WHITE;
+  int* distances = gameUtils::distances[this->kings[opponentColor]->square];
+  List<PieceType, 32>* defendedSquares = positionInfo->squareAttacks[color];
+  List<PieceType, 32>* attackedSquares = positionInfo->squareAttacks[opponentColor];
+  int hangingPiecesCoeff = this->turn == color ? 100 : 1000;
   int bishopsCount = 0;
   int score = 0;
 
@@ -122,14 +244,129 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
           && (file == FILE_D || file == FILE_E)
           && rank == gameUtils::rank2(color)
         )
-          ? this->board[piece->square + (color == WHITE ? NORTH : SOUTH)]
-            ? -1000
-            : -300
+          ? this->board[piece->square + (color == WHITE ? NORTH : SOUTH)] == this->noPiece
+            ? -300
+            : -1000
           : 0
     );
 
+    // eval bishop pair
     if (piece->type == BISHOP) {
       bishopsCount++;
+    }
+
+    // rooks on open/semi-open files
+    if (piece->type == ROOK && positionInfo->pawnFiles[color][file].min == NO_RANK) {
+      score += 100 + (positionInfo->pawnFiles[opponentColor][file].min == NO_RANK ? 100 : 0);
+    }
+
+    // control
+    if (piece->type != KING || isEndgame) {
+      for (auto &square : positionInfo->attacks[color][i]) {
+        Rank rank = gameUtils::squareRanks[square];
+        File file = gameUtils::squareFiles[square];
+        int distanceToOpponentKing = distances[square];
+
+        score += (
+          isEndgame || (isWhite ? rank < gameUtils::rank4(color) : rank > gameUtils::rank4(color))
+            ? 10
+            : rank == gameUtils::rank4(color) || rank == gameUtils::rank5(color) || rank == gameUtils::rank6(color)
+              ? file == FILE_D || file == FILE_E
+                ? 50
+                : file == FILE_C || file == FILE_F
+                  ? 25
+                  : 10
+              : 20
+        ) + (
+          distanceToOpponentKing > 2
+            ? 0
+            : distanceToOpponentKing == 2
+              ? 50
+              : 150
+        );
+      }
+    }
+
+    // hanging pieces
+    if (piece->type != KING) {
+      List<PieceType, 32>* attackingPieces = &attackedSquares[piece->square];
+
+      if (!attackingPieces->empty()) {
+        List<PieceType, 32>* defendingPieces = &defendedSquares[piece->square];
+
+        if (defendingPieces->empty()) {
+          score -= gameUtils::piecesWorth[piece->type] * hangingPiecesCoeff;
+        } else {
+          sort(
+            defendingPieces->list,
+            defendingPieces->last,
+            [](auto type1, auto type2) { return type1 < type2; }
+          );
+          sort(
+            attackingPieces->list,
+            attackingPieces->last,
+            [](auto type1, auto type2) { return type1 < type2; }
+          );
+
+          PieceType pieceToTake = piece->type;
+          bool state = false;
+          List<int, 32> lossStates;
+
+          lossStates.push(0);
+
+          while (true) {
+            if (state) {
+              if (defendingPieces->empty()) {
+                break;
+              }
+
+              PieceType lessValuableDefender = defendingPieces->pop();
+
+              lossStates.push(gameUtils::piecesWorth[pieceToTake]);
+
+              pieceToTake = lessValuableDefender;
+              state = false;
+            } else {
+              if (attackingPieces->empty()) {
+                break;
+              }
+
+              PieceType lessValuableAttacker = attackingPieces->pop();
+
+              lossStates.push(-gameUtils::piecesWorth[pieceToTake]);
+
+              pieceToTake = lessValuableAttacker;
+              state = true;
+            }
+          }
+
+          lossStates.push(lossStates[lossStates.size() - 1]);
+
+          int maxWin = -10000;
+          int maxWinIndex = 0;
+          int minLoss = 10000;
+          int minLossIndex = 0;
+          int loss = 0;
+
+          for (int i = 0; i < lossStates.size(); i++) {
+            loss += lossStates[i];
+
+            if (i & 1) {
+              if (maxWin < loss) {
+                maxWin = loss;
+                maxWinIndex = i;
+              }
+            } else {
+              if (minLoss > loss) {
+                minLoss = loss;
+                minLossIndex = i;
+              }
+            }
+          }
+
+          score += (minLossIndex < maxWinIndex ? minLoss : maxWin) * hangingPiecesCoeff;
+        }
+      }
     }
   }
 
@@ -176,7 +413,7 @@ Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
   sort(
     legalMovesWithScores.list,
     legalMovesWithScores.last,
-    [](auto &move1, auto &move2) { return move2.score > move1.score;}
+    [](auto &move1, auto &move2) { return move2.score < move1.score;}
   );
 
   for (int i = 0; i < legalMovesWithScores.size(); i++) {
@@ -238,7 +475,7 @@ Move Bot::getOptimalMove() {
 
   sort(
     legalMovesWithScores.list, legalMovesWithScores.last,
-    [](auto &move1, auto &move2) { return move2.score >= move1.score; }
+    [](auto &move1, auto &move2) { return move2.score < move1.score; }
   );
 
   List<MoveWithScore, 256> optimalMoves;
@@ -298,7 +535,7 @@ Move Bot::getOptimalMove() {
   cout << endl;
 
   cout
-    << "picket move " << utils::formatString(gameUtils::moveToUci(selectedMove.move), {"red", "bold"})
+    << "picked move " << utils::formatString(gameUtils::moveToUci(selectedMove.move), {"red", "bold"})
     << " (" << utils::formatString(this->getScore(selectedMove.score), {"green", "bold"}) << ")" << endl;
 
   return selectedMove.move;
@@ -311,7 +548,7 @@ string Bot::getScore(Score score) {
 
   string result = to_string(score / 1000.0);
 
-  return result.substr(0, result.length() - 4);
+  return result.substr(0, result.length() - 3);
 }
 
 bool Bot::isMateScore(Score score) {
@@ -337,7 +574,7 @@ Move Bot::makeMove() {
     this->cutNodesCount == 0
       ? "NaN"
       : to_string((int)round((1.0 * this->firstCutNodesCount / this->cutNodesCount) * 100)),
-    {"blue", "bold"}
+    {"green", "bold"}
   ) << "%" << endl;
   cout << "performance: " << utils::formatString(
     moveTook == 0

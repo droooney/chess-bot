@@ -386,8 +386,17 @@ namespace gameUtils {
   inline Rank      rank2(Color color) {
     return color == WHITE ? RANK_2 : RANK_7;
   };
+  inline Rank      rank3(Color color) {
+    return color == WHITE ? RANK_3 : RANK_6;
+  };
   inline Rank      rank4(Color color) {
     return color == WHITE ? RANK_4 : RANK_5;
+  };
+  inline Rank      rank5(Color color) {
+    return color == WHITE ? RANK_5 : RANK_4;
+  };
+  inline Rank      rank6(Color color) {
+    return color == WHITE ? RANK_6 : RANK_3;
   };
   inline Rank      rank7(Color color) {
     return color == WHITE ? RANK_7 : RANK_2;
