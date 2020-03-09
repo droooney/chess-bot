@@ -145,8 +145,8 @@ void init::init() {
       vector<vector<Square>*>* rookAttacks = gameUtils::slidingAttacks[ROOK][square1] = new vector<vector<Square>*>;
       vector<vector<Square>*>* queenAttacks = gameUtils::slidingAttacks[QUEEN][square1] = new vector<vector<Square>*>;
 
-      for (auto &[incrementY, incrementX] : gameUtils::diagonalIncrements) {
-        vector<Square> directionAttacksArray = gameUtils::traverseDirection(square1, incrementY, incrementX, false);
+      for (auto &increments : gameUtils::diagonalIncrements) {
+        vector<Square> directionAttacksArray = gameUtils::traverseDirection(square1, increments[0], increments[1], false);
 
         if (!directionAttacksArray.empty()) {
           auto directionAttacks = new vector<Square>;
@@ -158,8 +158,8 @@ void init::init() {
         }
       }
 
-      for (auto &[incrementY, incrementX] : gameUtils::orthogonalIncrements) {
-        vector<Square> directionAttacksArray = gameUtils::traverseDirection(square1, incrementY, incrementX, false);
+      for (auto &increments : gameUtils::orthogonalIncrements) {
+        vector<Square> directionAttacksArray = gameUtils::traverseDirection(square1, increments[0], increments[1], false);
 
         if (!directionAttacksArray.empty()) {
           auto directionAttacks = new vector<Square>;

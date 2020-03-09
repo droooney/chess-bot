@@ -349,7 +349,7 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
           int minLossIndex = 0;
           int loss = 0;
 
-          for (int i = 0; i < lossStates.size(); i++) {
+          for (size_t i = 0; i < lossStates.size(); i++) {
             loss += lossStates[i];
 
             if (i & 1) {
@@ -404,7 +404,7 @@ Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
 
   legalMovesWithScores.last += legalMoves.size();
 
-  for (int i = 0; i < legalMoves.size(); i++) {
+  for (size_t i = 0; i < legalMoves.size(); i++) {
     legalMovesWithScores[i].move = legalMoves[i];
     legalMovesWithScores[i].score = this->moveScore(legalMoves[i], isEndgame);
   }
@@ -415,7 +415,7 @@ Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
     [](auto &move1, auto &move2) { return move2.score < move1.score;}
   );
 
-  for (int i = 0; i < legalMovesWithScores.size(); i++) {
+  for (size_t i = 0; i < legalMovesWithScores.size(); i++) {
     MoveInfo moveInfo = this->performMove(legalMovesWithScores[i].move);
     Score score = -this->executeNegamax(depth + 1, -beta, -alpha);
 
@@ -460,7 +460,7 @@ Move Bot::getOptimalMove() {
 
   legalMovesWithScores.last += legalMoves.last - legalMoves.list;
 
-  for (int i = 0; i < legalMoves.size(); i++) {
+  for (size_t i = 0; i < legalMoves.size(); i++) {
     MoveInfo moveInfo = this->performMove(legalMoves[i]);
     Score score = -this->eval(1);
 
@@ -477,33 +477,40 @@ Move Bot::getOptimalMove() {
 
   List<MoveWithScore, 256> optimalMoves;
 
-  for (auto &[move, _] : legalMovesWithScores) {
-    MoveInfo moveInfo = this->performMove(move);
-    Score score = -this->executeNegamax(
-      1,
-      -INFINITE_SCORE,
-      -(optimalMoves.empty() ? -INFINITE_SCORE : optimalMoves[0].score - OPTIMAL_MOVE_THRESHOLD)
-    );
-    size_t index = optimalMoves.size();
+  for (auto &legalMoves : legalMovesWithScores) {
+    MoveInfo moveInfo = this->performMove(legalMoves.move);
+    Score maxScore = -INFINITE_SCORE;
 
-    for (size_t i = 0; i < optimalMoves.size(); i++) {
-      if (score > optimalMoves[i].score) {
-        index = i;
-
-        break;
+    for (auto &optimalMove : optimalMoves) {
+      if (optimalMove.score > maxScore) {
+        maxScore = optimalMove.score;
       }
     }
 
-    optimalMoves.insert({ .move = move, .score = score }, index);
+    Score score = -this->executeNegamax(
+      1,
+      -INFINITE_SCORE,
+      -(maxScore - OPTIMAL_MOVE_THRESHOLD)
+    );
+
+    MoveWithScore* last = optimalMoves.last++;
+
+    last->move = legalMoves.move;
+    last->score = score;
 
     this->revertMove(&moveInfo);
   }
+
+  sort(
+    optimalMoves.list, optimalMoves.last,
+    [](auto &move1, auto &move2) { return move2.score < move1.score; }
+  );
 
   double threshold = this->isMateScore(optimalMoves[0].score)
     ? 0.5
     : OPTIMAL_MOVE_THRESHOLD;
 
-  for (int i = optimalMoves.size() - 1; i > 0; i--) {
+  for (size_t i = optimalMoves.size() - 1; i > 0; i--) {
     if (optimalMoves[0].score - optimalMoves[i].score >= threshold) {
       optimalMoves.pop();
     } else {
@@ -517,7 +524,7 @@ Move Bot::getOptimalMove() {
 
   cout << "optimal moves: ";
 
-  for (int i = 0; i < optimalMoves.size(); i++) {
+  for (size_t i = 0; i < optimalMoves.size(); i++) {
     MoveWithScore optimalMove = optimalMoves[i];
 
     cout

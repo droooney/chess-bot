@@ -27,19 +27,6 @@ public:
   const T* end() const {
     return this->last;
   }
-  void     insert(const T &value, size_t index) {
-    size_t size = this->size();
-
-    this->last++;
-
-    if (size > 0) {
-      for (size_t i = size - 1; i < size && i >= index; i--) {
-        this->list[i + 1] = this->list[i];
-      }
-    }
-
-    this->list[index] = value;
-  }
   T        pop() {
     return *--this->last;
   }
