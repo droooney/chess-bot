@@ -60,12 +60,16 @@ Game::~Game() {
 }
 
 void Game::applyMoves(const string &moves) {
+  if (moves.length() == 0) {
+    return;
+  }
+
   vector<string> split = utils::split(moves, " ");
   vector<string> newMoves;
 
   newMoves.insert(newMoves.end(), split.begin() + this->moveCount, split.end());
 
-  for (auto &moveString : utils::split(moves, " ")) {
+  for (auto &moveString : newMoves) {
     this->performMove(gameUtils::uciToMove(moveString));
   }
 }

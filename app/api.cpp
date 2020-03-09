@@ -2,25 +2,58 @@
 #include <napi.h>
 
 #include "api.h"
-#include "game.h"
+#include "bot.h"
+#include "gameUtils.h"
 #include "init.h"
 
 using namespace std;
 
-void api::parseFen(const string &fen) {
-  Game game = Game(fen);
+Napi::FunctionReference api::BotWrapper::constructor;
+
+Napi::Object api::BotWrapper::Init(Napi::Env env, Napi::Object exports) {
+  Napi::HandleScope scope(env);
+
+  Napi::Function func = DefineClass(env, "Bot", {
+    InstanceMethod("applyMoves", &api::BotWrapper::ApplyMoves),
+    InstanceMethod("makeMove", &api::BotWrapper::MakeMove),
+  });
+
+  constructor = Napi::Persistent(func);
+  constructor.SuppressDestruct();
+
+  exports.Set("default", func);
+
+  return exports;
 }
 
-void api::parseFenWrapped(const Napi::CallbackInfo& info) {
-  string fen = info[0].As<Napi::String>();
+api::BotWrapper::BotWrapper(const Napi::CallbackInfo &info) : Napi::ObjectWrap<BotWrapper>(info) {
+  Napi::Env env = info.Env();
+  Napi::HandleScope scope(env);
+  Napi::String fen = info[0].As<Napi::String>();
+  Napi::Number color = info[1].As<Napi::Number>();
 
-  api::parseFen(fen);
+  this->bot = new Bot(string(fen), Color(color.Int32Value()));
+}
+
+void api::BotWrapper::ApplyMoves(const Napi::CallbackInfo &info) {
+  Napi::String moves = info[0].As<Napi::String>();
+
+  this->bot->applyMoves(string(moves));
+}
+
+Napi::Value api::BotWrapper::MakeMove(const Napi::CallbackInfo &info) {
+  Napi::Env env = info.Env();
+  Move move = this->bot->makeMove();
+
+  return move == NO_MOVE
+    ? env.Null()
+    : Napi::Number::New(env, move);
 }
 
 Napi::Object initAddonApi(Napi::Env env, Napi::Object exports) {
   init::init();
 
-  exports.Set("parseFen", Napi::Function::New(env, api::parseFenWrapped));
+  api::BotWrapper::Init(env, exports);
 
   return exports;
 }

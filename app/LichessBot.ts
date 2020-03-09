@@ -1,9 +1,12 @@
+/// <reference path="typings/addon.d.ts" />
+
 import * as https from 'https';
 import * as http from 'http';
 import * as qs from 'qs';
-import * as _ from 'lodash';
+import 'colors';
 
-import Bot from './Bot';
+import Bot from '../build/Release/addon.node';
+import Game from './Game';
 import {
   LichessChallenge,
   LichessCreateChallengeOptions,
@@ -131,7 +134,7 @@ export default class LichessBot {
     for await (const event of stream) {
       if (event.type === 'gameFull') {
         const bot = this.bots[gameId] = new Bot(
-          event.initialFen === 'startpos' ? Bot.standardFen : event.initialFen,
+          event.initialFen === 'startpos' ? Game.standardFen : event.initialFen,
           event.white.id === this.name ? Color.WHITE : Color.BLACK
         );
 
@@ -152,16 +155,25 @@ export default class LichessBot {
 
   handleGameState(gameId: string, bot: Bot, gameState: LichessGameState) {
     if (gameState.moves) {
+      /*
+      js code
+
       gameState.moves.split(' ').slice(bot.moveCount).forEach((uci) => {
         bot.performMove(Utils.uciToMove(uci));
 
         bot.moveCount++;
       });
+      */
+      bot.applyMoves(gameState.moves);
     }
+
+    /*
+    js code
 
     if (bot.isDraw || bot.isNoMoves()) {
       return;
     }
+    */
 
     const move = bot.makeMove();
 
@@ -199,13 +211,6 @@ export default class LichessBot {
           const [gameId] = additionalData;
 
           this.resign(gameId);
-        } else if (keyword === 'print') {
-          const [gameId, prop] = additionalData;
-          const bot = this.bots[gameId];
-
-          if (bot) {
-            console.log(_.get(bot, prop));
-          }
         }
       }
     }

@@ -539,7 +539,7 @@ Move Bot::getOptimalMove() {
 
 string Bot::getScore(Score score) {
   if (this->isMateScore(score)) {
-    return string("#") + (score < 0 ? "-" : "") + to_string(ceil((MATE_SCORE - abs(score)) / 2.0));
+    return string("#") + (score < 0 ? "-" : "") + to_string((int)ceil((MATE_SCORE - abs(score)) / 2.0));
   }
 
   string result = to_string(score / 1000.0);
@@ -559,6 +559,10 @@ Move Bot::makeMove() {
   this->nodes = 0;
   this->cutNodesCount = 0;
   this->firstCutNodesCount = 0;
+
+  this->evaluatedPositions.clear();
+  this->evaluatedPawnPositions[WHITE].clear();
+  this->evaluatedPawnPositions[BLACK].clear();
 
   clock_t timestamp = clock();
   Move move = this->getOptimalMove();
