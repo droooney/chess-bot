@@ -115,9 +115,9 @@ int perft::perft(string initialFen, int depth, bool useMap) {
           if (realMap[uci] != moveNodes) {
             cout << uci << " has " << moveNodes << " nodes, real one has " << realMap[uci] << endl;
           }
-
-          realMap.erase(uci);
         }
+
+        realMap.erase(uci);
       }
     }
 

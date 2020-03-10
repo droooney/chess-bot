@@ -27,7 +27,9 @@ PieceSquareTable gameUtils::egWhiteKingPieceSquareTable = {
 Square gameUtils::enPassantPieceSquares[64];
 bool gameUtils::isSquareBetween[64][64][64];
 vector<Square>* gameUtils::kingAttacks[64];
+Bitboard gameUtils::kingAttacks2[64];
 vector<Square>* gameUtils::knightAttacks[64];
+Bitboard gameUtils::knightAttacks2[64];
 vector<Square>* gameUtils::middleSquares[64][64];
 PieceSquareTable gameUtils::mgWhitePieceSquareTables[6] = {
   // king
@@ -103,6 +105,8 @@ PieceSquareTable gameUtils::mgWhitePieceSquareTables[6] = {
   }
 };
 vector<Square>* gameUtils::pawnAttacks[2][64];
+Bitboard gameUtils::pawnAttacks2[2][64];
+Bitboard gameUtils::squareBitboards[64];
 int gameUtils::squareColors[64];
 File gameUtils::squareFiles[64];
 Rank gameUtils::squareRanks[64];

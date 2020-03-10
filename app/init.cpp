@@ -8,7 +8,7 @@ using namespace std;
 
 void init::init() {
   for (Color color = WHITE; color < NO_COLOR; ++color) {
-    for (int pieceType = KING; pieceType < NO_PIECE; pieceType++) {
+    for (PieceType pieceType = KING; pieceType <= PAWN; ++pieceType) {
       for (int isEndgame = 0; isEndgame < 2; isEndgame++) {
         for (Square square = SQ_A1; square < NO_SQUARE; ++square) {
           int assignedSquare = color == WHITE
@@ -52,7 +52,7 @@ void init::init() {
         + abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
       );
 
-      for (PieceType pieceType = KING; pieceType < NO_PIECE; ++pieceType) {
+      for (PieceType pieceType = KING; pieceType <= PAWN; ++pieceType) {
         gameUtils::arePieceAligned[pieceType][square1][square2] = (
           pieceType == QUEEN
             ? gameUtils::areAligned[square1][square2]
@@ -99,22 +99,26 @@ void init::init() {
     // fill king attacks
     {
       vector<Square>* kingAttacks = gameUtils::kingAttacks[square1] = new vector<Square>;
+      Bitboard* kingAttacks2 = &gameUtils::kingAttacks2[square1];
 
       for (auto &increments : gameUtils::kingIncrements) {
-        vector<Square> directionAttacks = gameUtils::traverseDirection(square1, increments[0], increments[1], true);
-
-        kingAttacks->insert(kingAttacks->end(), directionAttacks.begin(), directionAttacks.end());
+        for (auto &square : gameUtils::traverseDirection(square1, increments[0], increments[1], true)) {
+          kingAttacks->push_back(square);
+          *kingAttacks2 |= 1ULL << square;
+        }
       }
     }
 
     // fill knight attacks
     {
       vector<Square>* knightAttacks = gameUtils::knightAttacks[square1] = new vector<Square>;
+      Bitboard* knightAttacks2 = &gameUtils::knightAttacks2[square1];
 
       for (auto &increments : gameUtils::knightIncrements) {
-        vector<Square> directionAttacks = gameUtils::traverseDirection(square1, increments[0], increments[1], true);
-
-        knightAttacks->insert(knightAttacks->end(), directionAttacks.begin(), directionAttacks.end());
+        for (auto &square : gameUtils::traverseDirection(square1, increments[0], increments[1], true)) {
+          knightAttacks->push_back(square);
+          *knightAttacks2 |= 1ULL << square;
+        }
       }
     }
 
@@ -122,6 +126,7 @@ void init::init() {
     {
       for (Color color = WHITE; color < NO_COLOR; ++color) {
         vector<Square>* pawnAttacks = gameUtils::pawnAttacks[color][square1] = new vector<Square>;
+        Bitboard* pawnAttacks2 = &gameUtils::pawnAttacks2[color][square1];
         Rank rank = gameUtils::rankOf(square1);
 
         if (gameUtils::rank8(color) != rank) {
@@ -130,10 +135,12 @@ void init::init() {
 
           if (file != FILE_A) {
             pawnAttacks->push_back(gameUtils::square(attackedRank, file - 1));
+            *pawnAttacks2 |= 1ULL << gameUtils::square(attackedRank, file - 1);
           }
 
           if (file != FILE_H) {
             pawnAttacks->push_back(gameUtils::square(attackedRank, file + 1));
+            *pawnAttacks2 |= 1ULL << gameUtils::square(attackedRank, file + 1);
           }
         }
       }
@@ -177,5 +184,6 @@ void init::init() {
     gameUtils::squares[rank][file] = square1;
     gameUtils::enPassantPieceSquares[square1] = gameUtils::square(rank == RANK_3 ? RANK_4 : rank == RANK_6 ? RANK_5 : rank,file);
     gameUtils::squareColors[square1] = (rank + file) % 2;
+    gameUtils::squareBitboards[square1] = 1ULL << square1;
   }
 }

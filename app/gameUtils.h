@@ -19,11 +19,11 @@ constexpr Color operator~(Color c) {
   return Color(c ^ 1);
 }
 
-constexpr Color operator++(Color &color) {
+constexpr Color& operator++(Color &color) {
   return color = Color(color + 1);
 }
 
-constexpr Color operator--(Color &color) {
+constexpr Color& operator--(Color &color) {
   return color = Color(color - 1);
 }
 
@@ -55,7 +55,7 @@ constexpr Castling operator&(Castling castling, Color color) {
   return Castling(castling & (color == WHITE ? WHITE_CASTLING : BLACK_CASTLING));
 }
 
-constexpr Castling operator&=(Castling &castling1, Castling castling2) {
+constexpr Castling& operator&=(Castling &castling1, Castling castling2) {
   return castling1 = Castling((int)castling1 & (int)castling2);
 }
 
@@ -63,7 +63,7 @@ constexpr Castling operator|(Castling castling1, Castling castling2) {
   return Castling((int)castling1 | (int)castling2);
 }
 
-constexpr Castling operator|=(Castling &castling1, Castling castling2) {
+constexpr Castling& operator|=(Castling &castling1, Castling castling2) {
   return castling1 = Castling((int)castling1 | (int)castling2);
 }
 
@@ -75,14 +75,15 @@ enum PieceType {
   KNIGHT,
   PAWN,
 
+  ALL_PIECES,
   NO_PIECE
 };
 
-constexpr PieceType operator++(PieceType &pieceType) {
+constexpr PieceType& operator++(PieceType &pieceType) {
   return pieceType = PieceType(pieceType + 1);
 }
 
-constexpr PieceType operator--(PieceType &pieceType) {
+constexpr PieceType& operator--(PieceType &pieceType) {
   return pieceType = PieceType(pieceType - 1);
 }
 
@@ -99,11 +100,11 @@ enum File : int {
   NO_FILE
 };
 
-constexpr File operator++(File &file) {
+constexpr File& operator++(File &file) {
   return file = File(file + 1);
 }
 
-constexpr File operator--(File &file) {
+constexpr File& operator--(File &file) {
   return file = File(file - 1);
 }
 
@@ -128,11 +129,11 @@ enum Rank : int {
   NO_RANK
 };
 
-constexpr Rank operator++(Rank &rank) {
+constexpr Rank& operator++(Rank &rank) {
   return rank = Rank(rank + 1);
 }
 
-constexpr Rank operator--(Rank &rank) {
+constexpr Rank& operator--(Rank &rank) {
   return rank = Rank(rank - 1);
 }
 
@@ -177,11 +178,11 @@ enum Square : int {
   NO_SQUARE
 };
 
-constexpr Square operator++(Square &square) {
+constexpr Square& operator++(Square &square) {
   return square = Square(square + 1);
 }
 
-constexpr Square operator--(Square &square) {
+constexpr Square& operator--(Square &square) {
   return square = Square(square - 1);
 }
 
@@ -189,7 +190,7 @@ constexpr Square operator+(Square square, Direction direction) {
   return Square((int)square + (int)direction);
 }
 
-constexpr Square operator+=(Square &square, Direction direction) {
+constexpr Square& operator+=(Square &square, Direction direction) {
   return square = Square((int)square + (int)direction);
 }
 
@@ -197,9 +198,11 @@ constexpr Square operator-(Square square, Direction direction) {
   return Square((int)square - (int)direction);
 }
 
-constexpr Square operator-=(Square &square, Direction direction) {
+constexpr Square& operator-=(Square &square, Direction direction) {
   return square = Square((int)square - (int)direction);
 }
+
+typedef uint64_t Bitboard;
 
 struct Piece {
   int       index;
@@ -218,7 +221,7 @@ constexpr Move operator|(Move move, PieceType promotion) {
   return Move((int)move | promotion);
 }
 
-constexpr Move operator|=(Move &move, PieceType promotion) {
+constexpr Move& operator|=(Move &move, PieceType promotion) {
   return move = move | promotion;
 }
 
@@ -254,7 +257,7 @@ constexpr Score operator+(Score score, int increment) {
   return Score((int)score + increment);
 }
 
-constexpr Score operator+=(Score &score, int increment) {
+constexpr Score& operator+=(Score &score, int increment) {
   return score = Score((int)score + increment);
 }
 
@@ -262,7 +265,7 @@ constexpr Score operator+(Score score1, Score score2) {
   return Score((int)score1 + (int)score2);
 }
 
-constexpr Score operator+=(Score &score1, Score score2) {
+constexpr Score& operator+=(Score &score1, Score score2) {
   return score1 = Score((int)score1 + (int)score2);
 }
 
@@ -270,7 +273,7 @@ constexpr Score operator-(Score score, int increment) {
   return Score((int)score - increment);
 }
 
-constexpr Score operator-=(Score &score, int increment) {
+constexpr Score& operator-=(Score &score, int increment) {
   return score = Score((int)score - increment);
 }
 
@@ -278,7 +281,7 @@ constexpr Score operator-(Score score1, Score score2) {
   return Score((int)score1 - (int)score2);
 }
 
-constexpr Score operator-=(Score &score1, Score score2) {
+constexpr Score& operator-=(Score &score1, Score score2) {
   return score1 = Score((int)score1 - (int)score2);
 }
 
@@ -318,6 +321,7 @@ namespace gameUtils {
   extern Square                   enPassantPieceSquares[64];
   extern bool                     isSquareBetween[64][64][64];
   extern vector<Square>*          kingAttacks[64];
+  extern Bitboard                 kingAttacks2[64];
   const int                       kingIncrements[8][2] = {
     {+1, +1},
     {-1, +1},
@@ -329,6 +333,7 @@ namespace gameUtils {
     {+0, -1}
   };
   extern vector<Square>*          knightAttacks[64];
+  extern Bitboard                 knightAttacks2[64];
   const int                       knightIncrements[8][2] = {
     {+1, +2},
     {-1, +2},
@@ -348,9 +353,11 @@ namespace gameUtils {
     {+0, -1}
   };
   extern vector<Square>*          pawnAttacks[2][64];
+  extern Bitboard                 pawnAttacks2[2][64];
   const string                    pieces = "kqrbnp";
   const int                       piecesWorth[6] = {1000, 16, 8, 5, 5, 1};
   extern vector<vector<Square>*>* slidingAttacks[6][64];
+  extern Bitboard                 squareBitboards[64];
   extern int                      squareColors[64];
   extern File                     squareFiles[64];
   extern Rank                     squareRanks[64];
@@ -413,6 +420,30 @@ namespace gameUtils {
   string           squareToLiteral(Square square);
   Move             uciToMove(const string &uci);
   vector<Square>   traverseDirection(Square square, int incrementRank, int incrementFile, bool stopAfter1);
+}
+
+constexpr Bitboard operator&(Bitboard bitboard, Square square) {
+  return bitboard & gameUtils::squareBitboards[square];
+}
+
+constexpr Bitboard& operator&=(Bitboard &bitboard, Square square) {
+  return bitboard = bitboard & gameUtils::squareBitboards[square];
+}
+
+constexpr Bitboard operator|(Bitboard bitboard, Square square) {
+  return bitboard | gameUtils::squareBitboards[square];
+}
+
+constexpr Bitboard& operator|=(Bitboard &bitboard, Square square) {
+  return bitboard = bitboard | gameUtils::squareBitboards[square];
+}
+
+constexpr Bitboard operator^(Bitboard bitboard, Square square) {
+  return bitboard ^ gameUtils::squareBitboards[square];
+}
+
+constexpr Bitboard& operator^=(Bitboard &bitboard, Square square) {
+  return bitboard = bitboard ^ gameUtils::squareBitboards[square];
 }
 
 #endif // GAME_UTILS_INCLUDED

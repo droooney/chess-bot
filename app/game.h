@@ -20,7 +20,9 @@ public:
 
 protected:
   int                       bishopsCount = 0;
+  Bitboard                  bitboards[2][7];
   Piece*                    board[64];
+  Bitboard                  boardBitboard = 0ULL;
   ZobristKey                castlingKeys[16];
   Piece*                    checkingPiece;
   ZobristKey                enPassantKeys[64];

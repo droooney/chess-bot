@@ -34,13 +34,16 @@ Game::Game(const string &fen) {
     enPassantKey = this->generateKey();
   }
 
-  for (int color = WHITE; color < NO_COLOR; color++) {
+  for (Color color = WHITE; color < NO_COLOR; ++color) {
     this->kings[color] = this->noPiece;
     this->material[color] = 0;
     this->pieceCounts[color] = 0;
+    this->bitboards[color][ALL_PIECES] = 0ULL;
 
-    for (int pieceType = KING; pieceType < NO_PIECE; pieceType++) {
-      for (int square = 0; square < NO_SQUARE; square++) {
+    for (PieceType pieceType = KING; pieceType <= PAWN; ++pieceType) {
+      this->bitboards[color][pieceType] = 0ULL;
+
+      for (Square square = SQ_A1; square < NO_SQUARE; ++square) {
         this->pieceKeys[color][pieceType][square] = this->generateKey();
       }
     }
@@ -291,10 +294,6 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
 
     Piece* capturedPiece = this->board[square];
 
-    if (capturedPiece != this->noPiece) {
-      this->board[capturedPiece->square] = this->noPiece;
-    }
-
     this->board[square] = piece;
     piece->square = square;
 
@@ -464,18 +463,7 @@ Piece* Game::getSliderBehind(Square square1, Square square2, Color color) {
 }
 
 bool Game::isControlledByOpponentPawn(Square square, Color opponentColor) {
-  for (auto &attackedSquare : *gameUtils::pawnAttacks[~opponentColor][square]) {
-    Piece* pieceInSquare = this->board[attackedSquare];
-
-    if (
-      pieceInSquare->color == opponentColor
-      && pieceInSquare->type == PAWN
-    ) {
-      return true;
-    }
-  }
-
-  return false;
+  return this->bitboards[opponentColor][PAWN] & gameUtils::pawnAttacks2[~opponentColor][square];
 }
 
 bool Game::isDirectionBlocked(Square square1, Square square2) {
@@ -592,15 +580,12 @@ bool Game::isSquareAttacked(Square square) {
     return true;
   }
 
-  for (auto &attackedSquare : *gameUtils::knightAttacks[square]) {
-    pieceInSquare = this->board[attackedSquare];
+  if (gameUtils::kingAttacks2[square] & this->kings[opponentColor]->square) {
+    return true;
+  }
 
-    if (
-      pieceInSquare->color == opponentColor
-      && pieceInSquare->type == KNIGHT
-    ) {
-      return true;
-    }
+  if (gameUtils::knightAttacks2[square] & this->bitboards[opponentColor][KNIGHT]) {
+    return true;
   }
 
   for (auto &bishopDirections : *gameUtils::slidingAttacks[BISHOP][square]) {
@@ -684,7 +669,14 @@ MoveInfo Game::performMove(Move move) {
   }
 
   this->board[from] = this->noPiece;
+  this->boardBitboard ^= from;
+  this->bitboards[pieceColor][ALL_PIECES] ^= from;
+  this->bitboards[pieceColor][pieceType] ^= from;
+
   this->board[to] = piece;
+  this->boardBitboard |= to;
+  this->bitboards[pieceColor][ALL_PIECES] |= to;
+  this->bitboards[pieceColor][pieceType] |= to;
 
   piece->square = to;
 
@@ -740,8 +732,11 @@ MoveInfo Game::performMove(Move move) {
 
     this->material[opponentColor] -= gameUtils::piecesWorth[capturedPiece->type];
     this->positionKey ^= this->pieceKeys[capturedPiece->color][capturedPiece->type][capturedPiece->square];
+    this->bitboards[opponentColor][ALL_PIECES] ^= capturedPiece->square;
+    this->bitboards[opponentColor][capturedPiece->type] ^= capturedPiece->square;
 
     if (isEnPassantCapture) {
+      this->boardBitboard ^= capturedPiece->square;
       this->board[capturedPiece->square] = this->noPiece;
     }
 
@@ -773,6 +768,8 @@ MoveInfo Game::performMove(Move move) {
     piece->type = promotion;
 
     this->material[pieceColor] += gameUtils::piecesWorth[promotion] - gameUtils::piecesWorth[PAWN];
+    this->bitboards[pieceColor][promotion] ^= to;
+    this->bitboards[pieceColor][PAWN] ^= to;
     this->positionKey ^= this->pieceKeys[pieceColor][PAWN][to] ^ this->pieceKeys[pieceColor][promotion][to];
     this->pawnKey ^= this->pieceKeys[pieceColor][PAWN][to];
     this->pawnCount--;
@@ -817,11 +814,11 @@ MoveInfo Game::performMove(Move move) {
   PieceType checkingPieceType = possibleNormalCheckingPiece->type;
 
   if (checkingPieceType == KNIGHT || checkingPieceType == PAWN) {
-    vector<Square>* attacks = checkingPieceType == KNIGHT
-      ? gameUtils::knightAttacks[possibleNormalCheckingPiece->square]
-      : gameUtils::pawnAttacks[this->turn][possibleNormalCheckingPiece->square];
+    Bitboard attacks = checkingPieceType == KNIGHT
+      ? gameUtils::knightAttacks2[possibleNormalCheckingPiece->square]
+      : gameUtils::pawnAttacks2[this->turn][possibleNormalCheckingPiece->square];
 
-    if (find(attacks->begin(), attacks->end(), opponentKingSquare) != attacks->end()) {
+    if (attacks & opponentKingSquare) {
       isCheck = isNormalCheck = true;
       checkingPiece = possibleNormalCheckingPiece;
     }
@@ -903,7 +900,15 @@ void Game::revertMove(MoveInfo* move) {
   PieceType promotion = gameUtils::getMovePromotion(move->move);
 
   this->board[movedPiece->square] = this->noPiece;
+  this->boardBitboard ^= movedPiece->square;
+  this->bitboards[movedPiece->color][ALL_PIECES] ^= movedPiece->square;
+  this->bitboards[movedPiece->color][movedPiece->type] ^= movedPiece->square;
+
   this->board[from] = movedPiece;
+  this->boardBitboard ^= from;
+  this->bitboards[movedPiece->color][ALL_PIECES] ^= from;
+  this->bitboards[movedPiece->color][movedPiece->type] ^= from;
+
   movedPiece->square = from;
 
   if (capturedPiece != this->noPiece) {
@@ -914,6 +919,9 @@ void Game::revertMove(MoveInfo* move) {
 
     this->material[capturedPiece->color] += gameUtils::piecesWorth[capturedPiece->type];
     this->board[capturedPiece->square] = capturedPiece;
+    this->boardBitboard |= capturedPiece->square;
+    this->bitboards[capturedPiece->color][ALL_PIECES] |= capturedPiece->square;
+    this->bitboards[capturedPiece->color][capturedPiece->type] |= capturedPiece->square;
 
     if (capturedPiece->type == BISHOP) {
       this->bishopsCount++;
@@ -924,6 +932,8 @@ void Game::revertMove(MoveInfo* move) {
 
   if (promotion != NO_PIECE) {
     this->material[movedPiece->color] -= gameUtils::piecesWorth[promotion] - gameUtils::piecesWorth[PAWN];
+    this->bitboards[movedPiece->color][promotion] ^= movedPiece->square;
+    this->bitboards[movedPiece->color][PAWN] ^= movedPiece->square;
     movedPiece->type = PAWN;
     this->pawnCount++;
   }
@@ -972,6 +982,9 @@ void Game::setStartingData() {
     });
 
     this->board[square] = piece;
+    this->boardBitboard ^= square;
+    this->bitboards[color][ALL_PIECES] ^= square;
+    this->bitboards[color][pieceType] ^= square;
     this->pieces[color][index] = piece;
     this->positionKey ^= this->pieceKeys[color][pieceType][square];
 
