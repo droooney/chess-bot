@@ -75,7 +75,7 @@ vector<PerfTest> tests = {
 
 int perft::perft(string initialFen, int depth, bool useMap) {
   auto timestamp = high_resolution_clock::now();
-  Game game = Game(initialFen);
+  Game game(initialFen);
   function<int(int)> calculateNodes = [&](int depth) {
     if (depth == 0) {
       return 1;

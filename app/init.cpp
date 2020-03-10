@@ -63,7 +63,10 @@ void init::init() {
       }
 
       vector<Square>* middleSquares = gameUtils::middleSquares[square1][square2] = new vector<Square>;
+      Bitboard* middleSquares2 = &gameUtils::middleSquares2[square1][square2];
       vector<Square>* behindSquares = gameUtils::behindSquares[square1][square2] = new vector<Square>;
+
+      *middleSquares2 = 0ULL;
 
       // fill middle squares
       if (square1 != square2 && gameUtils::areAligned[square1][square2]) {
@@ -82,6 +85,7 @@ void init::init() {
           }
 
           middleSquares->push_back(square);
+          *middleSquares2 |= 1ULL << square;
         }
       }
 

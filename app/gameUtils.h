@@ -346,6 +346,7 @@ namespace gameUtils {
   };
   extern PieceSquareTable         mgWhitePieceSquareTables[6];
   extern vector<Square>*          middleSquares[64][64];
+  extern Bitboard                 middleSquares2[64][64];
   const int                       orthogonalIncrements[4][2] = {
     {+1, +0},
     {-1, +0},

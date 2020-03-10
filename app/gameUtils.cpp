@@ -31,6 +31,7 @@ Bitboard gameUtils::kingAttacks2[64];
 vector<Square>* gameUtils::knightAttacks[64];
 Bitboard gameUtils::knightAttacks2[64];
 vector<Square>* gameUtils::middleSquares[64][64];
+Bitboard gameUtils::middleSquares2[64][64];
 PieceSquareTable gameUtils::mgWhitePieceSquareTables[6] = {
   // king
   {
