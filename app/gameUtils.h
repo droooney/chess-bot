@@ -423,27 +423,27 @@ namespace gameUtils {
   vector<Square>   traverseDirection(Square square, int incrementRank, int incrementFile, bool stopAfter1);
 }
 
-constexpr Bitboard operator&(Bitboard bitboard, Square square) {
+inline Bitboard operator&(Bitboard bitboard, Square square) {
   return bitboard & gameUtils::squareBitboards[square];
 }
 
-constexpr Bitboard& operator&=(Bitboard &bitboard, Square square) {
+inline Bitboard& operator&=(Bitboard &bitboard, Square square) {
   return bitboard = bitboard & gameUtils::squareBitboards[square];
 }
 
-constexpr Bitboard operator|(Bitboard bitboard, Square square) {
+inline Bitboard operator|(Bitboard bitboard, Square square) {
   return bitboard | gameUtils::squareBitboards[square];
 }
 
-constexpr Bitboard& operator|=(Bitboard &bitboard, Square square) {
+inline Bitboard& operator|=(Bitboard &bitboard, Square square) {
   return bitboard = bitboard | gameUtils::squareBitboards[square];
 }
 
-constexpr Bitboard operator^(Bitboard bitboard, Square square) {
+inline Bitboard operator^(Bitboard bitboard, Square square) {
   return bitboard ^ gameUtils::squareBitboards[square];
 }
 
-constexpr Bitboard& operator^=(Bitboard &bitboard, Square square) {
+inline Bitboard& operator^=(Bitboard &bitboard, Square square) {
   return bitboard = bitboard ^ gameUtils::squareBitboards[square];
 }
 
