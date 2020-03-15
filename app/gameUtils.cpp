@@ -176,7 +176,7 @@ Square gameUtils::popBitboardSquare(Bitboard* bitboard) {
     return NO_SQUARE;
   }
 
-  Square square = Square(ffsll(*bitboard) - 1);
+  Square square = Square(__builtin_ctzll(*bitboard));
 
   *bitboard ^= square;
 

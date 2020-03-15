@@ -390,7 +390,7 @@ namespace gameUtils {
     return File(square & 7);
   };
   inline Square    getBitboardSquare(Bitboard bitboard) {
-    return bitboard ? Square(ffsll(bitboard) - 1) : NO_SQUARE;
+    return bitboard ? Square(__builtin_ctzll(bitboard)) : NO_SQUARE;
   };
   inline Square    getMoveFrom(Move move) {
     return Square(move >> 9);
