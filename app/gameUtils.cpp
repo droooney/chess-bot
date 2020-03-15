@@ -24,6 +24,7 @@ Bitboard gameUtils::bishopMagics[64] = {
   0x1008044200440ULL, 0x4c04410841000ULL, 0x2000500104011130ULL, 0x1a0c010011c20229ULL, 0x44800112202200ULL, 0x434804908100424ULL, 0x300404822c08200ULL, 0x48081010008a2a80ULL,
 };
 MagicAttack gameUtils::bishopMagicAttacks[64];
+ControlBitboards gameUtils::controlBitboards[2];
 int gameUtils::distances[64][64];
 PieceSquareTable gameUtils::egWhiteKingPieceSquareTable = {
   -50,-40,-30,-20,-20,-30,-40,-50,
@@ -135,6 +136,7 @@ Bitboard gameUtils::squareBitboards[64];
 int gameUtils::squareColors[64];
 File gameUtils::squareFiles[64];
 Rank gameUtils::squareRanks[64];
+Bitboard gameUtils::squareRings[64][2];
 vector<vector<Square>*>* gameUtils::slidingAttacks[6][64];
 Square gameUtils::squares[8][8];
 

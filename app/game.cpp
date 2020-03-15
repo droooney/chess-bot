@@ -99,7 +99,7 @@ Move* Game::getAllLegalMoves(Move* moves) {
 
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = this->pieces[this->turn][i];
-    bool isPawnPromotion = piece->type == PAWN && gameUtils::squareRanks[piece->square] == gameUtils::rank7(piece->color);
+    bool isPawnPromotion = piece->type == PAWN && gameUtils::squareRanks[piece->square] == gameUtils::ranks[piece->color][RANK_7];
     List<Square, 32> squareList(this->getLegalMoves<false>(squareList.list, piece));
 
     for (auto &square : squareList) {
@@ -119,35 +119,7 @@ Move* Game::getAllLegalMoves(Move* moves) {
   return moves;
 }
 
-Square* Game::getAttacks(Square* attacks, Piece* piece) {
-  if (piece->type == KNIGHT) {
-    for (auto &square : *gameUtils::knightAttacks[piece->square]) {
-      *attacks++ = square;
-    }
-  } else if (piece->type == KING) {
-    for (auto &square : *gameUtils::kingAttacks[piece->square]) {
-      *attacks++ = square;
-    }
-  } else if (piece->type == PAWN) {
-    for (auto &square : *gameUtils::pawnAttacks[piece->color][piece->square]) {
-      *attacks++ = square;
-    }
-  } else {
-    for (auto &directionAttacks : *gameUtils::slidingAttacks[piece->type][piece->square]) {
-      for (auto &square : *directionAttacks) {
-        *attacks++ = square;
-
-        if (this->board[square] != this->noPiece) {
-          break;
-        }
-      }
-    }
-  }
-
-  return attacks;
-}
-
-Bitboard Game::getAttacks2(Piece *piece) {
+Bitboard Game::getAttacks(Piece *piece) {
   if (piece->type == KNIGHT) {
     return gameUtils::knightAttacks2[piece->square];
   }
@@ -163,10 +135,6 @@ Bitboard Game::getAttacks2(Piece *piece) {
   return piece->type == QUEEN
     ? this->getSlidingAttacks(BISHOP, piece->square) | this->getSlidingAttacks(ROOK, piece->square)
     : this->getSlidingAttacks(piece->type, piece->square);
-}
-
-Bitboard Game::getAttacksTo(Square square) {
-  return this->getAttacksTo(square, WHITE) | this->getAttacksTo(square, BLACK);
 }
 
 Bitboard Game::getAttacksTo(Square square, Color opponentColor) {
@@ -415,7 +383,7 @@ Square* Game::getPseudoLegalMoves(Square* moves, Piece *piece) {
       *moves++ = squareInFront;
 
       // double advance move
-      if (gameUtils::squareRanks[piece->square] == gameUtils::rank2(piece->color)) {
+      if (gameUtils::squareRanks[piece->square] == gameUtils::ranks[piece->color][RANK_2]) {
         squareInFront += direction;
 
         if (this->board[squareInFront] == this->noPiece) {
@@ -834,7 +802,7 @@ void Game::revertMove(MoveInfo* move) {
 
   if (castlingRook != this->noPiece) {
     Square oldSquare = gameUtils::squares
-      [gameUtils::rank1(castlingRook->color)]
+      [gameUtils::ranks[castlingRook->color][RANK_1]]
       [gameUtils::squareFiles[castlingRook->square] == FILE_F ? FILE_H : FILE_A];
 
     this->board[castlingRook->square] = this->noPiece;

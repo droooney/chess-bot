@@ -88,20 +88,20 @@ Score Bot::evalKingSafety(Color color) {
   Rank kingRank = gameUtils::squareRanks[king->square];
   bool isWhite = color == WHITE;
 
-  if (isWhite ? kingRank > gameUtils::rank4(color) : kingRank < gameUtils::rank4(color)) {
+  if (isWhite ? kingRank > gameUtils::ranks[color][RANK_4] : kingRank < gameUtils::ranks[color][RANK_4]) {
     return Score(-3000);
   }
 
-  if (kingRank == gameUtils::rank4(color)) {
+  if (kingRank == gameUtils::ranks[color][RANK_4]) {
     return Score(-2000);
   }
 
-  if (kingRank == gameUtils::rank3(color)) {
+  if (kingRank == gameUtils::ranks[color][RANK_3]) {
     return Score(-1000);
   }
 
   if (
-    kingRank == gameUtils::rank2(color)
+    kingRank == gameUtils::ranks[color][RANK_2]
     && kingFile >= FILE_C
     && kingFile <= FILE_F
   ) {
@@ -127,7 +127,7 @@ Score Bot::evalKingSafety(Color color) {
   defendingPieces.push(this->board[gameUtils::squares[upperRank][kingFile]]);
   defendingPieces.push(this->board[gameUtils::squares[upperRank][kingFile + 1]]);
 
-  int score = kingRank == gameUtils::rank1(color) && kingFile == FILE_C ? 0 : 100;
+  int score = kingRank == gameUtils::ranks[color][RANK_1] && kingFile == FILE_C ? 0 : 100;
 
   for (auto &piece : defendingPieces) {
     if (piece->color == color) {
@@ -188,11 +188,11 @@ Score Bot::evalPawns(Color color, PositionInfo *positionInfo) {
       && (rightInfo == nullptr || rightInfo->min == NO_RANK || (isWhite ? rightInfo->max <= rank : rightInfo->min >= rank))
     ) {
       score += 500 + (
-        rank == gameUtils::rank7(color)
+        rank == gameUtils::ranks[color][RANK_7]
           ? 1000
-          : rank == gameUtils::rank6(color)
+          : rank == gameUtils::ranks[color][RANK_6]
             ? 500
-            : rank == gameUtils::rank5(color)
+            : rank == gameUtils::ranks[color][RANK_5]
               ? 200
               : 0
       );
@@ -225,13 +225,13 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
     score += (
       (
         (piece->type == KNIGHT || piece->type == BISHOP)
-        && rank == gameUtils::rank1(color)
+        && rank == gameUtils::ranks[color][RANK_1]
       )
         ? -300
         : (
           piece->type == PAWN
           && (file == FILE_D || file == FILE_E)
-          && rank == gameUtils::rank2(color)
+          && rank == gameUtils::ranks[color][RANK_2]
         )
           ? this->board[piece->square + (color == WHITE ? NORTH : SOUTH)] == this->noPiece
             ? -300
@@ -251,32 +251,26 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
 
     // control
     if (piece->type != KING || isEndgame) {
-      Bitboard attacks = this->getAttacks2(piece);
+      Bitboard attacks = this->getAttacks(piece);
+      Bitboard* squareRings = gameUtils::squareRings[this->kings[opponentColor]->square];
 
-      while (attacks) {
-        Square square = gameUtils::popBitboardSquare(&attacks);
-        Rank rank = gameUtils::squareRanks[square];
-        File file = gameUtils::squareFiles[square];
-        int distanceToOpponentKing = distances[square];
+      if (isEndgame) {
+        score += 20 * __pop_count(attacks);
+      } else {
+        ControlBitboards* controlBitboards = &gameUtils::controlBitboards[color];
 
         score += (
-          isEndgame || (isWhite ? rank < gameUtils::rank4(color) : rank > gameUtils::rank4(color))
-            ? 10
-            : rank == gameUtils::rank4(color) || rank == gameUtils::rank5(color) || rank == gameUtils::rank6(color)
-              ? file == FILE_D || file == FILE_E
-                ? 50
-                : file == FILE_C || file == FILE_F
-                  ? 25
-                  : 10
-              : 20
-        ) + (
-          distanceToOpponentKing > 2
-            ? 0
-            : distanceToOpponentKing == 2
-              ? 50
-              : 150
+          50 * __pop_count(attacks & controlBitboards->center)
+          + 25 * __pop_count(attacks & controlBitboards->aroundCenter)
+          + 20 * __pop_count(attacks & controlBitboards->opponent)
+          + 10 * __pop_count(attacks & controlBitboards->unimportant)
         );
       }
+
+      score += (
+        150 * __pop_count(attacks & squareRings[0])
+        + 50 * __pop_count(attacks & squareRings[1])
+      );
     }
 
     // hanging pieces

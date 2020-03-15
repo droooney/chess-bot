@@ -46,9 +46,7 @@ protected:
   ZobristKey                turnKey;
 
   ZobristKey generateKey();
-  Square*    getAttacks(Square* attacks, Piece* piece);
-  Bitboard   getAttacks2(Piece* piece);
-  Bitboard   getAttacksTo(Square square);
+  Bitboard   getAttacks(Piece* piece);
   Bitboard   getAttacksTo(Square square, Color opponentColor);
   template<bool stopAfter1>
   Square*    getLegalMoves(Square* moves, Piece* piece);

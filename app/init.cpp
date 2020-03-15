@@ -14,6 +14,8 @@ void init::init() {
     gameUtils::enPassantPieceSquares[square] = gameUtils::square(rank == RANK_3 ? RANK_4 : rank == RANK_6 ? RANK_5 : rank,file);
     gameUtils::squareColors[square] = (rank + file) % 2;
     gameUtils::squareBitboards[square] = 1ULL << square;
+    gameUtils::squareRings[square][0] = 0ULL;
+    gameUtils::squareRings[square][1] = 0ULL;
   }
 
   for (Color color = WHITE; color < NO_COLOR; ++color) {
@@ -24,6 +26,26 @@ void init::init() {
     for (Rank rank = RANK_1; rank < NO_RANK; ++rank) {
       gameUtils::rankBitboards[color][rank] = 0xFFULL << (color == WHITE ? rank : 7 - rank) * 8;
     }
+
+    gameUtils::controlBitboards[color].center = (
+      gameUtils::rankBitboards[color][RANK_4]
+      | gameUtils::rankBitboards[color][RANK_5]
+      | gameUtils::rankBitboards[color][RANK_6]
+    ) & (gameUtils::fileBitboards[FILE_D] | gameUtils::fileBitboards[FILE_E]);
+    gameUtils::controlBitboards[color].aroundCenter = (
+      gameUtils::rankBitboards[color][RANK_4]
+      | gameUtils::rankBitboards[color][RANK_5]
+      | gameUtils::rankBitboards[color][RANK_6]
+    ) & (gameUtils::fileBitboards[FILE_C] | gameUtils::fileBitboards[FILE_F]);
+    gameUtils::controlBitboards[color].opponent = (
+      gameUtils::rankBitboards[color][RANK_7]
+      | gameUtils::rankBitboards[color][RANK_8]
+    );
+    gameUtils::controlBitboards[color].unimportant = ~(
+      gameUtils::controlBitboards[color].center
+      | gameUtils::controlBitboards[color].aroundCenter
+      | gameUtils::controlBitboards[color].opponent
+    );
 
     for (PieceType pieceType = KING; pieceType <= PAWN; ++pieceType) {
       for (int isEndgame = 0; isEndgame < 2; isEndgame++) {
@@ -64,10 +86,17 @@ void init::init() {
       gameUtils::areAligned[square1][square2] = (
         gameUtils::areAlignedDiagonally[square1][square2] || gameUtils::areAlignedOrthogonally[square1][square2]
       );
-      gameUtils::distances[square1][square2] = (
+
+      int distance = gameUtils::distances[square1][square2] = (
         abs(gameUtils::rankOf(square1) - gameUtils::rankOf(square2))
         + abs(gameUtils::fileOf(square1) - gameUtils::fileOf(square2))
       );
+
+      if (distance < 2) {
+        gameUtils::squareRings[square1][0] |= square2;
+      } else if (distance == 2) {
+        gameUtils::squareRings[square1][1] |= square2;
+      }
 
       for (PieceType pieceType = KING; pieceType <= PAWN; ++pieceType) {
         gameUtils::arePieceAligned[pieceType][square1][square2] = (
@@ -150,7 +179,7 @@ void init::init() {
         Bitboard* pawnAttacks2 = &gameUtils::pawnAttacks2[color][square1];
         Rank rank = gameUtils::rankOf(square1);
 
-        if (gameUtils::rank8(color) != rank) {
+        if (gameUtils::ranks[color][RANK_8] != rank) {
           Rank attackedRank = rank + (color == WHITE ? 1 : -1);
           File file = gameUtils::fileOf(square1);
 
@@ -209,8 +238,6 @@ void init::init() {
     ));
 
     for (auto &pieceType : { BISHOP, ROOK }) {
-      Bitboard blockersTable[4096];
-      Bitboard actualAttacks[4096];
       MagicAttack* magicAttack = pieceType == BISHOP
         ? &gameUtils::bishopMagicAttacks[square1]
         : &gameUtils::rookMagicAttacks[square1];
@@ -219,7 +246,6 @@ void init::init() {
         ? gameUtils::bishopMagics[square1]
         : gameUtils::rookMagics[square1];
       Bitboard mask = magicAttack->mask = gameUtils::getSlidingAttacks(square1, pieceType, 0ULL) & ~edges;
-      int size = 1 << __pop_count(mask);
       unsigned int shift = magicAttack->shift = 64 - __pop_count(mask);
       Bitboard blockers = 0ULL;
       int index = 0;

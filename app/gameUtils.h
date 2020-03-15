@@ -305,6 +305,13 @@ struct MagicAttack {
   unsigned int shift;
 };
 
+struct ControlBitboards {
+  Bitboard aroundCenter;
+  Bitboard center;
+  Bitboard opponent;
+  Bitboard unimportant;
+};
+
 namespace gameUtils {
   extern PieceSquareTable         allPieceSquareTables[2][6][2];
   extern bool                     areAlignedDiagonally[64][64];
@@ -315,6 +322,7 @@ namespace gameUtils {
   extern vector<Square>*          behindSquares[64][64];
   extern Bitboard                 bishopMagics[64];
   extern MagicAttack              bishopMagicAttacks[64];
+  extern ControlBitboards         controlBitboards[2];
   const int                       diagonalIncrements[4][2] = {
     {+1, +1},
     {-1, +1},
@@ -364,6 +372,10 @@ namespace gameUtils {
   const string                    pieces = "kqrbnp";
   const int                       piecesWorth[6] = {1000, 16, 8, 5, 5, 1};
   extern Bitboard                 rankBitboards[2][8];
+  const Rank                      ranks[2][8] = {
+    { RANK_1, RANK_2, RANK_3, RANK_4, RANK_5, RANK_6, RANK_7, RANK_8 },
+    { RANK_8, RANK_7, RANK_6, RANK_5, RANK_4, RANK_3, RANK_2, RANK_1 }
+  };
   extern Bitboard                 rookMagics[64];
   extern MagicAttack              rookMagicAttacks[64];
   extern vector<vector<Square>*>* slidingAttacks[6][64];
@@ -371,6 +383,7 @@ namespace gameUtils {
   extern int                      squareColors[64];
   extern File                     squareFiles[64];
   extern Rank                     squareRanks[64];
+  extern Bitboard                 squareRings[64][2];
   extern Square                   squares[8][8];
 
   inline File      fileOf(Square square) {
@@ -406,30 +419,6 @@ namespace gameUtils {
   string           moveToUci(Move move);
   Square           popBitboardSquare(Bitboard* bitboard);
   void             printBitboard(Bitboard bitboard);
-  inline Rank      rank1(Color color) {
-    return color == WHITE ? RANK_1 : RANK_8;
-  };
-  inline Rank      rank2(Color color) {
-    return color == WHITE ? RANK_2 : RANK_7;
-  };
-  inline Rank      rank3(Color color) {
-    return color == WHITE ? RANK_3 : RANK_6;
-  };
-  inline Rank      rank4(Color color) {
-    return color == WHITE ? RANK_4 : RANK_5;
-  };
-  inline Rank      rank5(Color color) {
-    return color == WHITE ? RANK_5 : RANK_4;
-  };
-  inline Rank      rank6(Color color) {
-    return color == WHITE ? RANK_6 : RANK_3;
-  };
-  inline Rank      rank7(Color color) {
-    return color == WHITE ? RANK_7 : RANK_2;
-  };
-  inline Rank      rank8(Color color) {
-    return color == WHITE ? RANK_8 : RANK_1;
-  };
   inline Rank      rankOf(Square square) {
     return Rank(square >> 3);
   }
