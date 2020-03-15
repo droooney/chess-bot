@@ -207,8 +207,6 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
   Piece** pieces = this->pieces[color];
   int pieceCount = this->pieceCounts[color];
   Color opponentColor = ~color;
-  bool isWhite = color == WHITE;
-  int* distances = gameUtils::distances[this->kings[opponentColor]->square];
   int hangingPiecesCoeff = this->turn == color ? 100 : 1000;
   int bishopsCount = 0;
   int score = 0;
@@ -255,21 +253,21 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
       Bitboard* squareRings = gameUtils::squareRings[this->kings[opponentColor]->square];
 
       if (isEndgame) {
-        score += 20 * __pop_count(attacks);
+        score += 20 * __builtin_popcountll(attacks);
       } else {
         ControlBitboards* controlBitboards = &gameUtils::controlBitboards[color];
 
         score += (
-          50 * __pop_count(attacks & controlBitboards->center)
-          + 25 * __pop_count(attacks & controlBitboards->aroundCenter)
-          + 20 * __pop_count(attacks & controlBitboards->opponent)
-          + 10 * __pop_count(attacks & controlBitboards->unimportant)
+          50 * __builtin_popcountll(attacks & controlBitboards->center)
+          + 25 * __builtin_popcountll(attacks & controlBitboards->aroundCenter)
+          + 20 * __builtin_popcountll(attacks & controlBitboards->opponent)
+          + 10 * __builtin_popcountll(attacks & controlBitboards->unimportant)
         );
       }
 
       score += (
-        150 * __pop_count(attacks & squareRings[0])
-        + 50 * __pop_count(attacks & squareRings[1])
+        150 * __builtin_popcountll(attacks & squareRings[0])
+        + 50 * __builtin_popcountll(attacks & squareRings[1])
       );
     }
 

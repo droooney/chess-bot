@@ -246,7 +246,7 @@ void init::init() {
         ? gameUtils::bishopMagics[square1]
         : gameUtils::rookMagics[square1];
       Bitboard mask = magicAttack->mask = gameUtils::getSlidingAttacks(square1, pieceType, 0ULL) & ~edges;
-      unsigned int shift = magicAttack->shift = 64 - __pop_count(mask);
+      unsigned int shift = magicAttack->shift = 64 - __builtin_popcountll(mask);
       Bitboard blockers = 0ULL;
       int index = 0;
 
