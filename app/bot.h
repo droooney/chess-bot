@@ -24,17 +24,18 @@ protected:
   int                              firstCutNodesCount = 0;
   int                              nodes = 0;
 
-  Score   eval(int depth);
-  Score   evalColor(Color color, PositionInfo* positionInfo);
-  Score   evalKingSafety(Color color);
-  Score   evalPawns(Color color, PositionInfo* positionInfo);
-  Score   evalPieces(Color color, PositionInfo* positionInfo);
-  Score   executeNegamax(int depth, Score alpha, Score beta);
-  Score   getMateScore(int depth);
-  Move    getOptimalMove();
-  string  getScore(Score score);
-  bool    isMateScore(Score score);
-  Score   moveScore(Move move, bool isEndgame);
+  Score     eval(int depth);
+  Score     evalColor(Color color, PositionInfo* positionInfo);
+  Score     evalKingSafety(Color color);
+  Score     evalPawns(Color color, PositionInfo* positionInfo);
+  Score     evalPieces(Color color, PositionInfo* positionInfo);
+  Score     executeNegamax(int depth, Score alpha, Score beta);
+  PieceType getLeastWorthAttacker(Bitboard* attackers, Color color);
+  Score     getMateScore(int depth);
+  Move      getOptimalMove();
+  string    getScore(Score score);
+  bool      isMateScore(Score score);
+  Score     moveScore(Move move, bool isEndgame);
 };
 
 #endif // BOT_INCLUDED

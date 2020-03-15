@@ -20,11 +20,11 @@ Bot::Bot(const string &fen, Color color) : Game(fen) {
 }
 
 Score Bot::eval(int depth) {
-  if (this->isCheck && this->isNoMoves()) {
+  if (this->checkers && this->isNoMoves()) {
     return this->getMateScore(depth);
   }
 
-  if (this->isDraw() || (!this->isCheck && this->isNoMoves())) {
+  if (this->isDraw() || (!this->checkers && this->isNoMoves())) {
     return SCORE_EQUAL;
   }
 
@@ -38,10 +38,6 @@ Score Bot::eval(int depth) {
 
     for (int i = 0; i < pieceCount; i++) {
       Piece* piece = pieces[i];
-
-      List<Square, 32>* attacks = &positionInfo.attacks[color][i];
-
-      attacks->last = this->getAttacks(attacks->list, piece);
 
       if (piece->type == PAWN) {
         Rank rank = gameUtils::squareRanks[piece->square];
@@ -62,12 +58,6 @@ Score Bot::eval(int depth) {
           }
 
           positionInfo.pawns[color].push(piece);
-        }
-      }
-
-      for (auto &square : *attacks) {
-        if (this->board[square] != this->noPiece) {
-          positionInfo.squareAttacks[color][square].push(piece->type);
         }
       }
     }
@@ -219,8 +209,6 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
   Color opponentColor = ~color;
   bool isWhite = color == WHITE;
   int* distances = gameUtils::distances[this->kings[opponentColor]->square];
-  List<PieceType, 32>* defendedSquares = positionInfo->squareAttacks[color];
-  List<PieceType, 32>* attackedSquares = positionInfo->squareAttacks[opponentColor];
   int hangingPiecesCoeff = this->turn == color ? 100 : 1000;
   int bishopsCount = 0;
   int score = 0;
@@ -263,7 +251,10 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
 
     // control
     if (piece->type != KING || isEndgame) {
-      for (auto &square : positionInfo->attacks[color][i]) {
+      Bitboard attacks = this->getAttacks2(piece);
+
+      while (attacks) {
+        Square square = gameUtils::popBitboardSquare(&attacks);
         Rank rank = gameUtils::squareRanks[square];
         File file = gameUtils::squareFiles[square];
         int distanceToOpponentKing = distances[square];
@@ -290,25 +281,12 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
 
     // hanging pieces
     if (piece->type != KING) {
-      List<PieceType, 32>* attackingPieces = &attackedSquares[piece->square];
+      Bitboard attackingPieces = this->getAttacksTo(piece->square, opponentColor);
 
-      if (!attackingPieces->empty()) {
-        List<PieceType, 32>* defendingPieces = &defendedSquares[piece->square];
+      if (attackingPieces) {
+        Bitboard defendingPieces = this->getAttacksTo(piece->square, color);
 
-        if (defendingPieces->empty()) {
-          score -= gameUtils::piecesWorth[piece->type] * hangingPiecesCoeff;
-        } else {
-          sort(
-            defendingPieces->list,
-            defendingPieces->last,
-            [](auto type1, auto type2) { return type1 < type2; }
-          );
-          sort(
-            attackingPieces->list,
-            attackingPieces->last,
-            [](auto type1, auto type2) { return type1 < type2; }
-          );
-
+        if (defendingPieces) {
           PieceType pieceToTake = piece->type;
           bool state = false;
           List<int, 32> lossStates;
@@ -316,29 +294,16 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
           lossStates.push(0);
 
           while (true) {
-            if (state) {
-              if (defendingPieces->empty()) {
-                break;
-              }
+            Bitboard* pieces = state ? &defendingPieces : &attackingPieces;
 
-              PieceType lessValuableDefender = defendingPieces->pop();
-
-              lossStates.push(gameUtils::piecesWorth[pieceToTake]);
-
-              pieceToTake = lessValuableDefender;
-              state = false;
-            } else {
-              if (attackingPieces->empty()) {
-                break;
-              }
-
-              PieceType lessValuableAttacker = attackingPieces->pop();
-
-              lossStates.push(-gameUtils::piecesWorth[pieceToTake]);
-
-              pieceToTake = lessValuableAttacker;
-              state = true;
+            if (!*pieces) {
+              break;
             }
+
+            lossStates.push(state ? gameUtils::piecesWorth[pieceToTake] : -gameUtils::piecesWorth[pieceToTake]);
+
+            pieceToTake = this->getLeastWorthAttacker(pieces, state ? color : opponentColor);
+            state = !state;
           }
 
           lossStates.push(lossStates[lossStates.size() - 1]);
@@ -366,6 +331,8 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
           }
 
           score += (minLossIndex < maxWinIndex ? minLoss : maxWin) * hangingPiecesCoeff;
+        } else {
+          score -= gameUtils::piecesWorth[piece->type] * hangingPiecesCoeff;
         }
       }
     }
@@ -396,7 +363,7 @@ Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
   List<Move, 256> legalMoves(this->getAllLegalMoves(legalMoves.list));
 
   if (legalMoves.empty()) {
-    return this->isCheck ? this->getMateScore(depth) : SCORE_EQUAL;
+    return this->checkers ? this->getMateScore(depth) : SCORE_EQUAL;
   }
 
   bool isEndgame = this->isEndgame();
@@ -437,6 +404,21 @@ Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
   }
 
   return alpha;
+}
+
+PieceType Bot::getLeastWorthAttacker(Bitboard* attackers, Color color) {
+  for (PieceType pieceType = PAWN; pieceType >= KING; --pieceType) {
+    Bitboard pieceTypeAttackers = *attackers & this->bitboards[color][pieceType];
+
+    if (pieceTypeAttackers) {
+      Square square = gameUtils::getBitboardSquare(pieceTypeAttackers);
+      *attackers ^= square;
+
+      return this->board[square]->type;
+    }
+  }
+
+  return NO_PIECE;
 }
 
 Score Bot::getMateScore(int depth) {

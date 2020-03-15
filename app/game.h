@@ -24,10 +24,8 @@ protected:
   Piece*                    board[64];
   Bitboard                  boardBitboard = 0ULL;
   ZobristKey                castlingKeys[16];
-  Piece*                    checkingPiece;
+  Bitboard                  checkers = 0ULL;
   ZobristKey                enPassantKeys[64];
-  bool                      isCheck = false;
-  bool                      isDoubleCheck = false;
   string                    fen;
   unordered_set<ZobristKey> keys;
   Piece*                    kings[2];
@@ -49,16 +47,18 @@ protected:
 
   ZobristKey generateKey();
   Square*    getAttacks(Square* attacks, Piece* piece);
-  Piece*     getCheckingPiece();
-  Square*    getLegalMoves(Square* moves, Piece* piece, bool stopAfter1);
+  Bitboard   getAttacks2(Piece* piece);
+  Bitboard   getAttacksTo(Square square);
+  Bitboard   getAttacksTo(Square square, Color opponentColor);
+  template<bool stopAfter1>
+  Square*    getLegalMoves(Square* moves, Piece* piece);
   Square*    getPseudoLegalMoves(Square* moves, Piece* piece);
   Piece*     getSliderBehind(Square square1, Square square2, Color color);
+  Bitboard   getSlidingAttacks(PieceType pieceType, Square square);
   bool       isControlledByOpponentPawn(Square square, Color opponentColor);
   bool       isDirectionBlocked(Square square1, Square square2);
   bool       isDraw();
   bool       isEndgame();
-  bool       isInCheck();
-  bool       isInDoubleCheck();
   bool       isInsufficientMaterial();
   bool       isNoMoves();
   bool       isSquareAttacked(Square square);

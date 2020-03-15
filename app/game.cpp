@@ -18,7 +18,6 @@ Game::Game(const string &fen) {
     .square = NO_SQUARE
   });
 
-  this->checkingPiece = this->noPiece;
   this->fen = fen;
   this->turnKey = this->generateKey();
 
@@ -101,7 +100,7 @@ Move* Game::getAllLegalMoves(Move* moves) {
   for (int i = 0; i < pieceCount; i++) {
     Piece* piece = this->pieces[this->turn][i];
     bool isPawnPromotion = piece->type == PAWN && gameUtils::squareRanks[piece->square] == gameUtils::rank7(piece->color);
-    List<Square, 32> squareList(this->getLegalMoves(squareList.list, piece, false));
+    List<Square, 32> squareList(this->getLegalMoves<false>(squareList.list, piece));
 
     for (auto &square : squareList) {
       Move move = gameUtils::move(piece->square, square);
@@ -148,26 +147,43 @@ Square* Game::getAttacks(Square* attacks, Piece* piece) {
   return attacks;
 }
 
-Piece* Game::getCheckingPiece() {
-  Piece** opponentPieces = this->pieces[~this->turn];
-  int pieceCount = this->pieceCounts[~this->turn];
-
-  for (int i = 0; i < pieceCount; i++) {
-    Piece* piece = opponentPieces[i];
-    List<Square, 32> attacks(this->getAttacks(attacks.list, piece));
-
-    if (attacks.contains(this->kings[this->turn]->square)) {
-      return piece;
-    }
+Bitboard Game::getAttacks2(Piece *piece) {
+  if (piece->type == KNIGHT) {
+    return gameUtils::knightAttacks2[piece->square];
   }
 
-  return this->noPiece;
+  if (piece->type == KING) {
+    return gameUtils::kingAttacks2[piece->square];
+  }
+
+  if (piece->type == PAWN) {
+    return gameUtils::pawnAttacks2[piece->color][piece->square];
+  }
+
+  return piece->type == QUEEN
+    ? this->getSlidingAttacks(BISHOP, piece->square) | this->getSlidingAttacks(ROOK, piece->square)
+    : this->getSlidingAttacks(piece->type, piece->square);
 }
 
-Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
+Bitboard Game::getAttacksTo(Square square) {
+  return this->getAttacksTo(square, WHITE) | this->getAttacksTo(square, BLACK);
+}
+
+Bitboard Game::getAttacksTo(Square square, Color opponentColor) {
+  return (
+    (gameUtils::knightAttacks2[square] & this->bitboards[opponentColor][KNIGHT])
+    | (gameUtils::kingAttacks2[square] & this->kings[opponentColor]->square)
+    | (gameUtils::pawnAttacks2[~opponentColor][square] & this->bitboards[opponentColor][PAWN])
+    | (this->getSlidingAttacks(BISHOP, square) & (this->bitboards[opponentColor][BISHOP] | this->bitboards[opponentColor][QUEEN]))
+    | (this->getSlidingAttacks(ROOK, square) & (this->bitboards[opponentColor][ROOK] | this->bitboards[opponentColor][QUEEN]))
+  );
+}
+
+template<bool stopAfter1>
+Square* Game::getLegalMoves(Square* moves, Piece *piece) {
   bool isKing = piece->type == KING;
 
-  if (this->isDoubleCheck && !isKing) {
+  if (!gameUtils::isSquareBitboard(this->checkers) && !isKing) {
     return moves;
   }
 
@@ -215,7 +231,7 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     this->boardBitboard ^= capturedPawn->square;
   }
 
-  if (isPinned && this->isCheck) {
+  if (isPinned && this->checkers) {
     return moves;
   }
 
@@ -240,20 +256,20 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     return moves;
   }
 
-  List<Square, 32> pseudoLegalMoves(this->getPseudoLegalMoves(pseudoLegalMoves.list, piece));
-
-  if (!this->isCheck && !isKing && !isPinned && (!isPawn || !isEnPassantPinned)) {
-    for (auto &square : pseudoLegalMoves) {
-      *moves++ = square;
-    }
-
-    return moves;
+  if (!this->checkers && !isKing && !isPinned && (!isPawn || !isEnPassantPinned)) {
+    return this->getPseudoLegalMoves(moves, piece);
   }
 
+  List<Square, 32> pseudoLegalMoves(this->getPseudoLegalMoves(pseudoLegalMoves.list, piece));
   Square* start = moves;
   Square prevSquare = piece->square;
+  Piece* checkingPiece = this->checkers
+    ? this->board[gameUtils::getBitboardSquare(this->checkers)]
+    : this->noPiece;
 
-  this->board[prevSquare] = this->noPiece;
+  if (isKing) {
+    this->boardBitboard ^= prevSquare;
+  }
 
   for (auto &square : pseudoLegalMoves) {
     bool isEnPassantCapture = isPawn && square == this->possibleEnPassant;
@@ -262,18 +278,18 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
       continue;
     }
 
-    if (this->isCheck && !isKing) {
+    if (this->checkers && !isKing) {
       Square capturedPieceSquare = isEnPassantCapture
         ? gameUtils::enPassantPieceSquares[this->possibleEnPassant]
         : square;
 
       if (
         // not capturing checking piece
-        capturedPieceSquare != this->checkingPiece->square
+        capturedPieceSquare != checkingPiece->square
         && (
           // and not blocking slider checker
-          !gameUtils::isSlider(this->checkingPiece)
-          || !gameUtils::isSquareBetween[kingSquare][square][this->checkingPiece->square]
+          !gameUtils::isSlider(checkingPiece)
+          || !gameUtils::isSquareBetween[kingSquare][square][checkingPiece->square]
         )
       ) {
         continue;
@@ -285,26 +301,15 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
         *moves++ = square;
 
         if (stopAfter1) {
-          break;
+          return moves;
         }
       }
 
       continue;
     }
 
-    Piece* capturedPiece = this->board[square];
-
-    this->board[square] = piece;
-    piece->square = square;
-
-    if (!this->isInCheck()) {
+    if (!this->isSquareAttacked(square)) {
       *moves++ = square;
-    }
-
-    this->board[square] = this->noPiece;
-
-    if (capturedPiece != this->noPiece) {
-      this->board[capturedPiece->square] = capturedPiece;
     }
 
     if (stopAfter1 && moves != start) {
@@ -312,8 +317,9 @@ Square* Game::getLegalMoves(Square* moves, Piece *piece, bool stopAfter1) {
     }
   }
 
-  this->board[prevSquare] = piece;
-  piece->square = prevSquare;
+  if (isKing) {
+    this->boardBitboard ^= prevSquare;
+  }
 
   return moves;
 }
@@ -354,7 +360,7 @@ Square* Game::getPseudoLegalMoves(Square* moves, Piece *piece) {
 
     if (
       piece->square == (piece->color == WHITE ? SQ_E1 : SQ_E8)
-      && !this->isCheck
+      && !this->checkers
       && this->possibleCastling & piece->color
     ) {
       List<Castling, 2> castlings;
@@ -460,6 +466,14 @@ Piece* Game::getSliderBehind(Square square1, Square square2, Color color) {
   return this->noPiece;
 }
 
+Bitboard Game::getSlidingAttacks(PieceType pieceType, Square square) {
+  MagicAttack* magicAttack = pieceType == BISHOP
+    ? &gameUtils::bishopMagicAttacks[square]
+    : &gameUtils::rookMagicAttacks[square];
+
+  return magicAttack->attacks[(this->boardBitboard & magicAttack->mask) * magicAttack->magic >> magicAttack->shift];
+}
+
 bool Game::isControlledByOpponentPawn(Square square, Color opponentColor) {
   return this->bitboards[opponentColor][PAWN] & gameUtils::pawnAttacks2[~opponentColor][square];
 }
@@ -471,7 +485,7 @@ bool Game::isDirectionBlocked(Square square1, Square square2) {
 bool Game::isDraw() {
   return (
     this->pliesFor50MoveRule >= 100
-    || count(min(this->positions.begin(), this->positions.end() - (this->pliesFor50MoveRule + 1)), this->positions.end(), this->positionKey) >= 3
+    || count(max(this->positions.begin(), this->positions.end() - (this->pliesFor50MoveRule + 1)), this->positions.end(), this->positionKey) >= 3
     || this->isInsufficientMaterial()
   );
 }
@@ -481,26 +495,6 @@ bool Game::isEndgame() {
     this->pawnCount < 5
     || this->pieceCounts[WHITE] + this->pieceCounts[BLACK] - this->pawnCount < 9
   );
-}
-
-bool Game::isInCheck() {
-  return this->isSquareAttacked(this->kings[this->turn]->square);
-}
-
-bool Game::isInDoubleCheck() {
-  Piece** opponentPieces = this->pieces[~this->turn];
-  int pieceCount = this->pieceCounts[~this->turn];
-  int checkingPiecesCount = 0;
-
-  for (int i = 0; i < pieceCount; i++) {
-    List<Square, 32> attacks(this->getAttacks(attacks.list, opponentPieces[i]));
-
-    if (attacks.contains(this->kings[this->turn]->square)) {
-      checkingPiecesCount++;
-    }
-  }
-
-  return checkingPiecesCount == 2;
 }
 
 bool Game::isInsufficientMaterial() {
@@ -554,7 +548,7 @@ bool Game::isNoMoves() {
   Piece** pieces = this->pieces[this->turn];
 
   for (int i = 0; i < this->pieceCounts[this->turn]; i++) {
-    List<Square, 32> squareList(this->getLegalMoves(squareList.list, pieces[i], true));
+    List<Square, 32> squareList(this->getLegalMoves<true>(squareList.list, pieces[i]));
 
     if (!squareList.empty()) {
       return false;
@@ -566,9 +560,8 @@ bool Game::isNoMoves() {
 
 bool Game::isSquareAttacked(Square square) {
   Color opponentColor = ~this->turn;
-  Piece* pieceInSquare;
 
-  if (this->isControlledByOpponentPawn(square, opponentColor)) {
+  if (this->bitboards[opponentColor][PAWN] & gameUtils::pawnAttacks2[~opponentColor][square]) {
     return true;
   }
 
@@ -580,49 +573,10 @@ bool Game::isSquareAttacked(Square square) {
     return true;
   }
 
-  for (auto &bishopDirections : *gameUtils::slidingAttacks[BISHOP][square]) {
-    for (size_t i = 0; i < bishopDirections->size(); i++) {
-      pieceInSquare = this->board[bishopDirections->at(i)];
-
-      if (pieceInSquare != this->noPiece) {
-        if (
-          pieceInSquare->color == opponentColor
-          && (
-            pieceInSquare->type == BISHOP
-            || pieceInSquare->type == QUEEN
-            || (pieceInSquare->type == KING && i == 0)
-          )
-        ) {
-          return true;
-        }
-
-        break;
-      }
-    }
-  }
-
-  for (auto &rookDirections : *gameUtils::slidingAttacks[ROOK][square]) {
-    for (size_t i = 0; i < rookDirections->size(); i++) {
-      pieceInSquare = this->board[rookDirections->at(i)];
-
-      if (pieceInSquare != this->noPiece) {
-        if (
-          pieceInSquare->color == opponentColor
-          && (
-            pieceInSquare->type == ROOK
-            || pieceInSquare->type == QUEEN
-            || (pieceInSquare->type == KING && i == 0)
-          )
-        ) {
-          return true;
-        }
-
-        break;
-      }
-    }
-  }
-
-  return false;
+  return (
+    (this->getSlidingAttacks(BISHOP, square) & (this->bitboards[opponentColor][BISHOP] | this->bitboards[opponentColor][QUEEN]))
+    || (this->getSlidingAttacks(ROOK, square) & (this->bitboards[opponentColor][ROOK] | this->bitboards[opponentColor][QUEEN]))
+  );
 }
 
 MoveInfo Game::performMove(Move move) {
@@ -644,9 +598,7 @@ MoveInfo Game::performMove(Move move) {
     .movedPiece = piece,
     .capturedPiece = capturedPiece,
     .castlingRook = this->noPiece,
-    .wasCheck = this->isCheck,
-    .wasDoubleCheck = this->isDoubleCheck,
-    .prevCheckingPiece = this->checkingPiece,
+    .prevCheckers = this->checkers,
     .prevPositionKey = this->positionKey,
     .prevPawnKey = this->pawnKey,
     .prevPossibleEnPassant = prevPossibleEnPassant,
@@ -797,76 +749,19 @@ MoveInfo Game::performMove(Move move) {
     this->possibleEnPassant = NO_SQUARE;
   }
 
-  this->positionKey ^= this->turnKey ^ this->castlingKeys[prevPossibleCastling] ^ this->castlingKeys[this->possibleCastling];
+  if (this->possibleCastling != prevPossibleCastling) {
+    this->positionKey ^= this->castlingKeys[prevPossibleCastling] ^ this->castlingKeys[this->possibleCastling];
+  }
+
+  this->positionKey ^= this->turnKey;
 
   if (prevPossibleEnPassant != NO_SQUARE) {
     this->positionKey ^= this->enPassantKeys[prevPossibleEnPassant];
   }
 
-  bool isCheck = false;
-  bool isNormalCheck = false;
-  bool isDiscoveredCheck = false;
-  bool isEnPassantDiscoveredCheck = false;
-  Piece* checkingPiece = this->noPiece;
-  Square opponentKingSquare = this->kings[opponentColor]->square;
-  Piece* possibleNormalCheckingPiece = castlingRook == this->noPiece ? piece : castlingRook;
-  PieceType checkingPieceType = possibleNormalCheckingPiece->type;
-
-  if (checkingPieceType == KNIGHT || checkingPieceType == PAWN) {
-    Bitboard attacks = checkingPieceType == KNIGHT
-      ? gameUtils::knightAttacks2[possibleNormalCheckingPiece->square]
-      : gameUtils::pawnAttacks2[this->turn][possibleNormalCheckingPiece->square];
-
-    if (attacks & opponentKingSquare) {
-      isCheck = isNormalCheck = true;
-      checkingPiece = possibleNormalCheckingPiece;
-    }
-  } else if (
-    checkingPieceType != KING
-    && gameUtils::arePieceAligned[checkingPieceType][possibleNormalCheckingPiece->square][opponentKingSquare]
-    && (
-      !gameUtils::areOnOneLine[from][to][opponentKingSquare]
-      || capturedPiece != this->noPiece
-      || castlingRook != this->noPiece
-      || promotion != NO_PIECE
-    )
-    && !this->isDirectionBlocked(possibleNormalCheckingPiece->square, opponentKingSquare)
-  ) {
-    isCheck = isNormalCheck = true;
-    checkingPiece = possibleNormalCheckingPiece;
-  }
-
-  if (
-    pieceType != QUEEN
-    && (
-      (gameUtils::areAlignedDiagonally[from][opponentKingSquare] && pieceType != BISHOP)
-      || (gameUtils::areAlignedOrthogonally[from][opponentKingSquare] && pieceType != ROOK)
-    )
-    && !gameUtils::areOnOneLine[from][to][opponentKingSquare]
-    && castlingRook == this->noPiece
-  ) {
-    Piece* sliderBehind = this->getSliderBehind(opponentKingSquare, from, pieceColor);
-
-    if (sliderBehind != this->noPiece && !this->isDirectionBlocked(from, opponentKingSquare)) {
-      isDiscoveredCheck = isCheck = true;
-      checkingPiece = sliderBehind;
-    }
-  }
-
-  if (!isNormalCheck && isEnPassantCapture && gameUtils::areAlignedDiagonally[opponentKingSquare][capturedPiece->square]) {
-    Piece* sliderBehind = this->getSliderBehind(opponentKingSquare, capturedPiece->square, pieceColor);
-
-    if (sliderBehind != this->noPiece && !this->isDirectionBlocked(capturedPiece->square, opponentKingSquare)) {
-      isEnPassantDiscoveredCheck = isCheck = true;
-      checkingPiece = sliderBehind;
-    }
-  }
-
   this->moveCount++;
   this->turn = opponentColor;
-  this->isCheck = isCheck;
-  this->isDoubleCheck = (isNormalCheck || isEnPassantDiscoveredCheck) && isDiscoveredCheck;
-  this->checkingPiece = checkingPiece;
+  this->checkers = this->getAttacksTo(this->kings[this->turn]->square, ~this->turn);
 
   this->positions.push(this->positionKey);
 
@@ -874,8 +769,8 @@ MoveInfo Game::performMove(Move move) {
 }
 
 void Game::printBoard() {
-  for (int rank = 7; rank >= 0; rank--) {
-    for (int file = 0; file < 8; file++) {
+  for (Rank rank = RANK_8; rank >= RANK_1; --rank) {
+    for (File file = FILE_A; file < NO_FILE; ++file) {
       Piece* piece = this->board[rank << 3 | file];
 
       if (piece == this->noPiece) {
@@ -955,12 +850,9 @@ void Game::revertMove(MoveInfo* move) {
     castlingRook->square = oldSquare;
   }
 
-  this->isCheck = move->wasCheck;
-  this->isDoubleCheck = move->wasDoubleCheck;
-  this->checkingPiece = move->prevCheckingPiece;
-
   this->positions.pop();
 
+  this->checkers = move->prevCheckers;
   this->positionKey = move->prevPositionKey;
   this->pawnKey = move->prevPawnKey;
   this->possibleEnPassant = move->prevPossibleEnPassant;
@@ -1054,9 +946,7 @@ void Game::setStartingData() {
     if (possibleCastling.find('q') != string::npos) this->possibleCastling |= BLACK_OOO;
   }
 
-  this->isCheck = this->isInCheck();
-  this->isDoubleCheck = this->isInDoubleCheck();
-  this->checkingPiece = this->getCheckingPiece();
+  this->checkers = this->getAttacksTo(this->kings[this->turn]->square, ~this->turn);
 
   *this->positions.last++ = this->positionKey;
 }

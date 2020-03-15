@@ -230,9 +230,7 @@ struct MoveInfo {
   Piece*     movedPiece;
   Piece*     capturedPiece;
   Piece*     castlingRook;
-  bool       wasCheck;
-  bool       wasDoubleCheck;
-  Piece*     prevCheckingPiece;
+  Bitboard   prevCheckers;
   ZobristKey prevPositionKey;
   ZobristKey prevPawnKey;
   Square     prevPossibleEnPassant;
@@ -296,10 +294,15 @@ struct FileInfo {
 };
 
 struct PositionInfo {
-  List<Square, 32>    attacks[2][64];
   FileInfo            pawnFiles[2][8];
   List<Piece*, 64>    pawns[2];
-  List<PieceType, 32> squareAttacks[2][64];
+};
+
+struct MagicAttack {
+  Bitboard     attacks[4096];
+  Bitboard     magic;
+  Bitboard     mask;
+  unsigned int shift;
 };
 
 namespace gameUtils {
@@ -310,6 +313,8 @@ namespace gameUtils {
   extern bool                     areOnOneLine[64][64][64];
   extern bool                     arePieceAligned[6][64][64];
   extern vector<Square>*          behindSquares[64][64];
+  extern Bitboard                 bishopMagics[64];
+  extern MagicAttack              bishopMagicAttacks[64];
   const int                       diagonalIncrements[4][2] = {
     {+1, +1},
     {-1, +1},
@@ -319,6 +324,7 @@ namespace gameUtils {
   extern int                      distances[64][64];
   extern PieceSquareTable         egWhiteKingPieceSquareTable;
   extern Square                   enPassantPieceSquares[64];
+  extern Bitboard                 fileBitboards[8];
   extern bool                     isSquareBetween[64][64][64];
   extern vector<Square>*          kingAttacks[64];
   extern Bitboard                 kingAttacks2[64];
@@ -357,6 +363,9 @@ namespace gameUtils {
   extern Bitboard                 pawnAttacks2[2][64];
   const string                    pieces = "kqrbnp";
   const int                       piecesWorth[6] = {1000, 16, 8, 5, 5, 1};
+  extern Bitboard                 rankBitboards[2][8];
+  extern Bitboard                 rookMagics[64];
+  extern MagicAttack              rookMagicAttacks[64];
   extern vector<vector<Square>*>* slidingAttacks[6][64];
   extern Bitboard                 squareBitboards[64];
   extern int                      squareColors[64];
@@ -366,6 +375,9 @@ namespace gameUtils {
 
   inline File      fileOf(Square square) {
     return File(square & 7);
+  };
+  inline Square    getBitboardSquare(Bitboard bitboard) {
+    return bitboard ? Square(ffsll(bitboard) - 1) : NO_SQUARE;
   };
   inline Square    getMoveFrom(Move move) {
     return Square(move >> 9);
@@ -380,14 +392,20 @@ namespace gameUtils {
   inline Square    getMoveTo(Move move) {
     return Square(move >> 3 & 63);
   };
+  Bitboard         getSlidingAttacks(Square square, PieceType pieceType, Bitboard blockers);
   inline bool      isSlider(Piece* piece) {
     return piece->type == QUEEN || piece->type == ROOK || piece->type == BISHOP;
   };
+  inline bool      isSquareBitboard(Bitboard bitboard) {
+    return !(bitboard & (bitboard - 1));
+  }
   Square           literalToSquare(const string &square);
   inline Move      move(Square from, Square to) {
     return Move(from << 9 | to << 3);
   };
   string           moveToUci(Move move);
+  Square           popBitboardSquare(Bitboard* bitboard);
+  void             printBitboard(Bitboard bitboard);
   inline Rank      rank1(Color color) {
     return color == WHITE ? RANK_1 : RANK_8;
   };
@@ -445,6 +463,14 @@ inline Bitboard operator^(Bitboard bitboard, Square square) {
 
 inline Bitboard& operator^=(Bitboard &bitboard, Square square) {
   return bitboard = bitboard ^ gameUtils::squareBitboards[square];
+}
+
+inline bool operator==(Bitboard bitboard, Square square) {
+  return bitboard == gameUtils::squareBitboards[square];
+}
+
+inline bool operator!=(Bitboard bitboard, Square square) {
+  return bitboard != gameUtils::squareBitboards[square];
 }
 
 #endif // GAME_UTILS_INCLUDED

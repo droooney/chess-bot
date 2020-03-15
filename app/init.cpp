@@ -7,7 +7,24 @@
 using namespace std;
 
 void init::init() {
+  for (Square square = SQ_A1; square < NO_SQUARE; ++square) {
+    File file = gameUtils::squareFiles[square] = gameUtils::fileOf(square);
+    Rank rank = gameUtils::squareRanks[square] = gameUtils::rankOf(square);
+    gameUtils::squares[rank][file] = square;
+    gameUtils::enPassantPieceSquares[square] = gameUtils::square(rank == RANK_3 ? RANK_4 : rank == RANK_6 ? RANK_5 : rank,file);
+    gameUtils::squareColors[square] = (rank + file) % 2;
+    gameUtils::squareBitboards[square] = 1ULL << square;
+  }
+
   for (Color color = WHITE; color < NO_COLOR; ++color) {
+    for (File file = FILE_A; file < NO_FILE; ++file) {
+      gameUtils::fileBitboards[file] = 0x0101010101010101ULL << file;
+    }
+
+    for (Rank rank = RANK_1; rank < NO_RANK; ++rank) {
+      gameUtils::rankBitboards[color][rank] = 0xFFULL << (color == WHITE ? rank : 7 - rank) * 8;
+    }
+
     for (PieceType pieceType = KING; pieceType <= PAWN; ++pieceType) {
       for (int isEndgame = 0; isEndgame < 2; isEndgame++) {
         for (Square square = SQ_A1; square < NO_SQUARE; ++square) {
@@ -183,11 +200,36 @@ void init::init() {
       }
     }
 
-    File file = gameUtils::squareFiles[square1] = gameUtils::fileOf(square1);
-    Rank rank = gameUtils::squareRanks[square1] = gameUtils::rankOf(square1);
-    gameUtils::squares[rank][file] = square1;
-    gameUtils::enPassantPieceSquares[square1] = gameUtils::square(rank == RANK_3 ? RANK_4 : rank == RANK_6 ? RANK_5 : rank,file);
-    gameUtils::squareColors[square1] = (rank + file) % 2;
-    gameUtils::squareBitboards[square1] = 1ULL << square1;
+    Bitboard edges = ((
+      (gameUtils::rankBitboards[WHITE][RANK_1] | gameUtils::rankBitboards[WHITE][RANK_8])
+      & ~gameUtils::rankBitboards[WHITE][gameUtils::rankOf(square1)]
+    ) | (
+      (gameUtils::fileBitboards[FILE_A] | gameUtils::fileBitboards[FILE_H])
+      & ~gameUtils::fileBitboards[gameUtils::fileOf(square1)]
+    ));
+
+    for (auto &pieceType : { BISHOP, ROOK }) {
+      Bitboard blockersTable[4096];
+      Bitboard actualAttacks[4096];
+      MagicAttack* magicAttack = pieceType == BISHOP
+        ? &gameUtils::bishopMagicAttacks[square1]
+        : &gameUtils::rookMagicAttacks[square1];
+      Bitboard* attacks = magicAttack->attacks;
+      Bitboard magic = magicAttack->magic = pieceType == BISHOP
+        ? gameUtils::bishopMagics[square1]
+        : gameUtils::rookMagics[square1];
+      Bitboard mask = magicAttack->mask = gameUtils::getSlidingAttacks(square1, pieceType, 0ULL) & ~edges;
+      int size = 1 << __pop_count(mask);
+      unsigned int shift = magicAttack->shift = 64 - __pop_count(mask);
+      Bitboard blockers = 0ULL;
+      int index = 0;
+
+      do {
+        attacks[blockers * magic >> shift] = gameUtils::getSlidingAttacks(square1, pieceType, blockers);
+
+        index++;
+        blockers = (blockers - mask) & mask;
+      } while (blockers);
+    }
   }
 }
