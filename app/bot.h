@@ -13,7 +13,7 @@ using namespace std;
 
 class Bot : public Game {
 public:
-  Bot(const string &fen, Color color);
+  Bot(const string &fen, Color color, int searchDepth);
   Move makeMove();
 
 protected:
@@ -23,6 +23,7 @@ protected:
   unordered_map<ZobristKey, Score> evaluatedPositions;
   int                              firstCutNodesCount = 0;
   int                              nodes = 0;
+  int                              searchDepth;
 
   Score     eval(int depth);
   Score     evalColor(Color color, PositionInfo* positionInfo);

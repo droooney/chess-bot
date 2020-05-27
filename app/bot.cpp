@@ -12,11 +12,11 @@
 
 using namespace std;
 
-const int SEARCH_DEPTH = 3 * 2;
 const int OPTIMAL_MOVE_THRESHOLD = 50;
 
-Bot::Bot(const string &fen, Color color) : Game(fen) {
+Bot::Bot(const string &fen, Color color, int searchDepth) : Game(fen) {
   this->color = color;
+  this->searchDepth = searchDepth;
 }
 
 Score Bot::eval(int depth) {
@@ -334,7 +334,7 @@ Score Bot::evalPieces(Color color, PositionInfo *positionInfo) {
 }
 
 Score Bot::executeNegamax(int depth, Score alpha, Score beta) {
-  if (depth == SEARCH_DEPTH) {
+  if (depth == this->searchDepth) {
     auto currentScore = this->evaluatedPositions.find(this->positionKey);
     bool found = currentScore != this->evaluatedPositions.end();
     Score score = found ? currentScore->second : this->eval(depth);

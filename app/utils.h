@@ -18,8 +18,8 @@ public:
   const T* begin() const {
     return this->list;
   }
-  bool     contains(T move) const {
-    return find(this->begin(), this->end(), move) != end();
+  bool     contains(T item) const {
+    return find(this->begin(), this->end(), item) != end();
   }
   bool     empty() const {
     return this->last == this->list;

@@ -16,6 +16,10 @@ import {
 } from './types';
 import Utils, { Color } from './Utils';
 
+interface Stream<T> extends AsyncIterable<T> {
+  close(): void;
+}
+
 export default class LichessBot {
   token: string;
   name: string;
@@ -35,14 +39,15 @@ export default class LichessBot {
     this.sendRequest(`/api/challenge/${userId}`, 'post', challengeOptions);
   }
 
-  createStream<T>(url: string): AsyncIterable<T> {
+  createStream<T>(url: string): Stream<T> {
     const results: IteratorResult<T>[] = [];
     let result = '';
     let flush: ((data: IteratorResult<T>) => void) | null = null;
+    let close: (() => void) | null = null;
 
     return {
       [Symbol.asyncIterator]: () => {
-        this.sendRequest(url, 'get', null, async (res) => {
+        const req = this.sendRequest(url, 'get', null, async (res) => {
           for await (const data of res) {
             if (data instanceof Buffer) {
               const lines = data.toString('utf8').split('\n');
@@ -85,6 +90,8 @@ export default class LichessBot {
           }
         });
 
+        close = () => req.abort();
+
         return {
           next() {
             return new Promise<IteratorResult<T>>((resolve) => {
@@ -102,6 +109,11 @@ export default class LichessBot {
             });
           }
         };
+      },
+      close() {
+        if (close) {
+          close();
+        }
       }
     };
   }
@@ -111,17 +123,12 @@ export default class LichessBot {
     console.log(`got challenge from ${challenge.challenger.name.green.bold}: ${
       challenge.variant.name} ${challenge.speed} ${challenge.rated ? 'rated' : 'unrated'} game`);
 
-    if (
-      !challenge.rated
-      && (
-        challenge.variant.key === 'standard'
-        || (!this.isProduction && challenge.variant.key === 'fromPosition')
-      )
-    ) {
-      this.sendRequest(`/api/challenge/${challenge.id}/accept`, 'post');
-    } else {
-      this.sendRequest(`/api/challenge/${challenge.id}/decline`, 'post');
-    }
+    const accepted = (
+      challenge.variant.key === 'standard'
+      || (!this.isProduction && challenge.variant.key === 'fromPosition')
+    );
+
+    this.sendRequest(`/api/challenge/${challenge.id}/${accepted ? 'accept' : 'decline'}`, 'post');
   }
 
   async handleGameStart(gameId: string) {
@@ -135,7 +142,10 @@ export default class LichessBot {
       if (event.type === 'gameFull') {
         const bot = this.bots[gameId] = new Bot(
           event.initialFen === 'startpos' ? Game.standardFen : event.initialFen,
-          event.white.id === this.name ? Color.WHITE : Color.BLACK
+          event.white.id === this.name ? Color.WHITE : Color.BLACK,
+          event.speed === 'classical' || event.speed === 'correspondence'
+            ? 4 * 2
+            : 3 * 2
         );
 
         this.handleGameState(gameId, bot, event.state);
@@ -221,6 +231,8 @@ export default class LichessBot {
 
     const stream = this.createStream<LichessLobbyEvent>('/api/stream/event');
 
+    setTimeout(() => stream.close(), 2 * 60 * 60 * 1000);
+
     for await (const event of stream) {
       if (event.type === 'challenge') {
         this.handleChallenge(event.challenge);
@@ -243,7 +255,12 @@ export default class LichessBot {
     this.sendRequest(`/api/bot/game/${gameId}/move/${Utils.moveToUci(move)}`, 'post');
   }
 
-  sendRequest(path: string, method: string, body?: object | null, callback?: (res: http.IncomingMessage) => void): void {
+  sendRequest(
+    path: string,
+    method: string,
+    body?: object | null,
+    callback?: (res: http.IncomingMessage) => void
+  ): http.ClientRequest {
     const data = qs.stringify(body || {});
     const req = https.request({
       protocol: 'https:',
@@ -258,5 +275,7 @@ export default class LichessBot {
     }, callback);
 
     req.end(data);
+
+    return req;
   }
 }

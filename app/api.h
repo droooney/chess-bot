@@ -13,6 +13,7 @@ namespace api {
   public:
     static Napi::Object Init(Napi::Env env, Napi::Object exports);
     explicit            BotWrapper(const Napi::CallbackInfo &info);
+    ~BotWrapper();
 
   private:
     static Napi::FunctionReference constructor;

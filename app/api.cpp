@@ -31,8 +31,13 @@ api::BotWrapper::BotWrapper(const Napi::CallbackInfo &info) : Napi::ObjectWrap<B
   Napi::HandleScope scope(env);
   Napi::String fen = info[0].As<Napi::String>();
   Napi::Number color = info[1].As<Napi::Number>();
+  Napi::Number searchDepth = info[2].As<Napi::Number>();
 
-  this->bot = new Bot(string(fen), Color(color.Int32Value()));
+  this->bot = new Bot(string(fen), Color(color.Int32Value()), searchDepth.Int32Value());
+}
+
+api::BotWrapper::~BotWrapper() {
+  delete this->bot;
 }
 
 void api::BotWrapper::ApplyMoves(const Napi::CallbackInfo &info) {
