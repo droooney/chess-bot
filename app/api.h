@@ -14,10 +14,12 @@ namespace api {
     static Napi::Object Init(Napi::Env env, Napi::Object exports);
     explicit            BotWrapper(const Napi::CallbackInfo &info);
     ~BotWrapper();
+    void                destroy();
 
   private:
     static Napi::FunctionReference constructor;
     void                           ApplyMoves(const Napi::CallbackInfo &info);
+    void                           Destroy(const Napi::CallbackInfo &info);
     Napi::Value                    MakeMove(const Napi::CallbackInfo &info);
     Bot* bot;
   };

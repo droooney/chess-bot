@@ -15,6 +15,7 @@ Napi::Object api::BotWrapper::Init(Napi::Env env, Napi::Object exports) {
 
   Napi::Function func = DefineClass(env, "Bot", {
     InstanceMethod("applyMoves", &api::BotWrapper::ApplyMoves),
+    InstanceMethod("destroy", &api::BotWrapper::Destroy),
     InstanceMethod("makeMove", &api::BotWrapper::MakeMove),
   });
 
@@ -37,6 +38,10 @@ api::BotWrapper::BotWrapper(const Napi::CallbackInfo &info) : Napi::ObjectWrap<B
 }
 
 api::BotWrapper::~BotWrapper() {
+  this->destroy();
+}
+
+void api::BotWrapper::destroy() {
   delete this->bot;
 }
 
@@ -44,6 +49,10 @@ void api::BotWrapper::ApplyMoves(const Napi::CallbackInfo &info) {
   Napi::String moves = info[0].As<Napi::String>();
 
   this->bot->applyMoves(string(moves));
+}
+
+void api::BotWrapper::Destroy(const Napi::CallbackInfo &info) {
+  this->destroy();
 }
 
 Napi::Value api::BotWrapper::MakeMove(const Napi::CallbackInfo &info) {

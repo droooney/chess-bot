@@ -140,6 +140,12 @@ export default class LichessBot {
 
     for await (const event of stream) {
       if (event.type === 'gameFull') {
+        const existingBot = this.bots[gameId];
+
+        if (existingBot) {
+          existingBot.destroy();
+        }
+
         const bot = this.bots[gameId] = new Bot(
           event.initialFen === 'startpos' ? Game.standardFen : event.initialFen,
           event.white.id === this.name ? Color.WHITE : Color.BLACK,
@@ -156,6 +162,12 @@ export default class LichessBot {
           this.handleGameState(gameId, bot, event);
         }
       }
+    }
+
+    const bot = this.bots[gameId];
+
+    if (bot) {
+      bot.destroy();
     }
 
     delete this.bots[gameId];
