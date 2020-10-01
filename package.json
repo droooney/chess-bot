@@ -5,6 +5,7 @@
   "main": "index.js",
   "gypfile": true,
   "scripts": {
+    "magic": "ts-node magics.ts",
     "build": "node-gyp rebuild",
     "clean": "node-gyp clean",
     "perft": "ts-node ./app/perft.ts",
